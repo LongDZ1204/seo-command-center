@@ -12,13 +12,14 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# === MODERN CSS STYLES ===
+# === MODERN CSS STYLES - MÀU XANH DƯƠNG CHỦ ĐẠO ===
 st.markdown("""
 <style>
     :root {
-        --primary: #6366f1;
-        --primary-light: #818cf8;
-        --primary-dark: #4f46e5;
+        --primary: #2563eb;
+        --primary-light: #3b82f6;
+        --primary-dark: #1d4ed8;
+        --primary-bg: #eff6ff;
         --success: #10b981;
         --success-light: #34d399;
         --success-bg: #ecfdf5;
@@ -28,9 +29,9 @@ st.markdown("""
         --danger: #ef4444;
         --danger-light: #f87171;
         --danger-bg: #fef2f2;
-        --info: #3b82f6;
-        --info-light: #60a5fa;
-        --info-bg: #eff6ff;
+        --info: #0ea5e9;
+        --info-light: #38bdf8;
+        --info-bg: #f0f9ff;
         --gray-50: #f9fafb;
         --gray-100: #f3f4f6;
         --gray-200: #e5e7eb;
@@ -50,10 +51,10 @@ st.markdown("""
         --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
     }
     
-    .stApp { background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%); }
+    .stApp { background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); }
     .main .block-container { padding-top: 2rem; padding-bottom: 2rem; max-width: 1400px; }
     
-    [data-testid="stSidebar"] { background: linear-gradient(180deg, var(--gray-900) 0%, var(--gray-800) 100%); }
+    [data-testid="stSidebar"] { background: linear-gradient(180deg, #1e3a5f 0%, #1e40af 100%); }
     [data-testid="stSidebar"] .stMarkdown { color: var(--gray-300); }
     [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 { color: white !important; }
     [data-testid="stSidebar"] label { color: var(--gray-300) !important; }
@@ -67,7 +68,7 @@ st.markdown("""
     .dashboard-header .subtitle { margin-top: 8px; opacity: 0.9; font-size: 14px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
     .dashboard-header .stat-badge { background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 20px; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; }
     
-    .section-header { display: flex; align-items: center; gap: 10px; margin: 32px 0 16px 0; padding-bottom: 12px; border-bottom: 2px solid var(--gray-200); }
+    .section-header { display: flex; align-items: center; gap: 10px; margin: 32px 0 16px 0; padding-bottom: 12px; border-bottom: 2px solid var(--primary-light); }
     .section-header h2 { margin: 0; font-size: 18px; font-weight: 600; color: var(--gray-800); }
     .section-header .icon { width: 32px; height: 32px; background: var(--primary); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; color: white; font-size: 16px; }
     
@@ -75,7 +76,7 @@ st.markdown("""
         background: white; border-radius: var(--radius-lg); padding: 20px;
         box-shadow: var(--shadow-md); border: 1px solid var(--gray-100);
         transition: all 0.2s ease; position: relative; overflow: hidden;
-        min-height: 200px; display: flex; flex-direction: column;
+        min-height: 220px; display: flex; flex-direction: column;
     }
     .kpi-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
     .kpi-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: var(--primary); }
@@ -99,31 +100,49 @@ st.markdown("""
     .alert-box.danger { background: var(--danger-bg); border: 1px solid #fecaca; }
     .alert-box.success { background: var(--success-bg); border: 1px solid #a7f3d0; }
     .alert-box.warning { background: var(--warning-bg); border: 1px solid #fde68a; }
+    .alert-box.info { background: var(--primary-bg); border: 1px solid #bfdbfe; }
     .alert-box .icon-wrapper { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 18px; }
     .alert-box.danger .icon-wrapper { background: var(--danger); color: white; }
     .alert-box.success .icon-wrapper { background: var(--success); color: white; }
+    .alert-box.info .icon-wrapper { background: var(--primary); color: white; }
     .alert-box .content { flex: 1; }
     .alert-box .title { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
     .alert-box.danger .title { color: var(--danger); }
     .alert-box.success .title { color: var(--success); }
+    .alert-box.info .title { color: var(--primary); }
     .alert-box .description { font-size: 13px; color: var(--gray-600); }
     
-    .stats-bar { display: flex; gap: 24px; padding: 12px 20px; background: var(--gray-50); border-radius: var(--radius-md); margin-top: 16px; flex-wrap: wrap; }
+    .stats-bar { display: flex; gap: 24px; padding: 12px 20px; background: var(--primary-bg); border-radius: var(--radius-md); margin-top: 16px; flex-wrap: wrap; border: 1px solid #bfdbfe; }
     .stats-bar .stat-item { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--gray-600); }
-    .stats-bar .stat-item .value { font-weight: 600; color: var(--gray-800); }
+    .stats-bar .stat-item .value { font-weight: 600; color: var(--primary-dark); }
     
-    .data-table-header { background: var(--gray-50); padding: 16px 20px; border-bottom: 1px solid var(--gray-200); display: flex; justify-content: space-between; align-items: center; border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
-    .data-table-header .title { font-weight: 600; color: var(--gray-800); display: flex; align-items: center; gap: 8px; }
+    .data-table-header { background: var(--primary-bg); padding: 16px 20px; border-bottom: 1px solid #bfdbfe; display: flex; justify-content: space-between; align-items: center; border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
+    .data-table-header .title { font-weight: 600; color: var(--primary-dark); display: flex; align-items: center; gap: 8px; }
     .data-table-header .count { background: var(--primary); color: white; padding: 2px 10px; border-radius: 20px; font-size: 12px; }
+    .data-table-header .compare-info { font-size: 12px; color: var(--gray-500); background: white; padding: 4px 12px; border-radius: 20px; }
     
-    .setup-card { background: white; padding: 32px; border-radius: var(--radius-lg); box-shadow: var(--shadow-md); margin-bottom: 24px; }
-    .setup-card h3 { color: var(--gray-800); margin-bottom: 16px; }
+    .setup-card { background: white; padding: 32px; border-radius: var(--radius-lg); box-shadow: var(--shadow-md); margin-bottom: 24px; border-top: 4px solid var(--primary); }
+    .setup-card h3 { color: var(--primary-dark); margin-bottom: 16px; }
     .setup-card ol { color: var(--gray-600); line-height: 2; }
-    .setup-card code { background: var(--gray-100); padding: 2px 8px; border-radius: 4px; font-size: 13px; }
+    .setup-card code { background: var(--primary-bg); padding: 2px 8px; border-radius: 4px; font-size: 13px; color: var(--primary-dark); }
     
     .connection-status { padding: 12px 16px; border-radius: var(--radius-md); margin-bottom: 16px; display: flex; align-items: center; gap: 10px; }
     .connection-status.connected { background: var(--success-bg); color: var(--success); }
     .connection-status.disconnected { background: var(--danger-bg); color: var(--danger); }
+    
+    /* Workstation compare badge */
+    .workstation-compare-badge { 
+        background: var(--primary-bg); 
+        border: 1px solid var(--primary-light); 
+        padding: 8px 16px; 
+        border-radius: var(--radius-md); 
+        margin-bottom: 16px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        color: var(--primary-dark);
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -145,7 +164,7 @@ def get_google_connection():
     except Exception as e:
         return None
 
-@st.cache_data(ttl=300)  # Cache 5 phút
+@st.cache_data(ttl=300)
 def load_projects_from_sheet(_client, spreadsheet_url):
     """Load danh sách projects từ Settings tab"""
     try:
@@ -166,7 +185,6 @@ def load_master_from_sheet(_client, spreadsheet_url, project_name):
         data = master_sheet.get_all_records()
         df = pd.DataFrame(data)
         
-        # Chuẩn hóa column names
         df.columns = [clean_text_strict(c) for c in df.columns]
         
         col_map = {}
@@ -338,6 +356,7 @@ def calculate_historical_kpi(df_full, all_dates, top_n_list=[3, 5, 10, 15, 30, 5
     return pd.DataFrame(history_data).sort_values('Date', ascending=False)
 
 def get_available_compare_dates(all_dates, current_date):
+    """FIX #3: Hiển thị ngày cụ thể trong dropdown"""
     if len(all_dates) <= 1:
         return {}
     
@@ -346,19 +365,19 @@ def get_available_compare_dates(all_dates, current_date):
     
     for date in other_dates:
         days_diff = (current_date - date).days
+        date_str = pd.to_datetime(date).strftime('%d/%m/%Y')
         
         if days_diff == 1:
-            label = "Hôm qua"
-        elif days_diff <= 7:
-            label = f"{days_diff} ngày trước"
+            label = f"Hôm qua ({date_str})"
         else:
-            label = f"{days_diff} ngày trước ({pd.to_datetime(date).strftime('%d/%m')})"
+            label = f"{days_diff} ngày trước ({date_str})"
         
         compare_options[label] = date
     
     return compare_options
 
 def calculate_comparison(df_history, current_date, compare_date):
+    """FIX #1: Sửa logic so sánh - current vs compare (không phải compare vs current)"""
     if df_history.empty or compare_date is None:
         return {}
     
@@ -376,6 +395,7 @@ def calculate_comparison(df_history, current_date, compare_date):
         curr_count = safe_int(curr_row.get(f'Top{top_n}_count', 0))
         comp_count = safe_int(comp_row.get(f'Top{top_n}_count', 0))
         
+        # FIX: delta = current - compare (positive nếu hiện tại cao hơn)
         delta = curr_count - comp_count
         delta_pct = ((curr_count - comp_count) / comp_count * 100) if comp_count > 0 else 0
         
@@ -418,11 +438,10 @@ with st.sidebar:
         <div style="font-size: 24px; font-weight: 700; color: white; display: flex; align-items: center; justify-content: center; gap: 10px;">
             📊 SEO Center
         </div>
-        <div style="font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 4px;">Version 10.0 - Cloud Edition</div>
+        <div style="font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 4px;">Version 10.1 - Cloud Edition</div>
     </div>
     """, unsafe_allow_html=True)
     
-    # Check Google Sheets connection
     gc = get_google_connection()
     
     if gc:
@@ -432,7 +451,6 @@ with st.sidebar:
         </div>
         """, unsafe_allow_html=True)
         
-        # Spreadsheet URL
         st.markdown("<div style='color: white; margin-bottom: 8px;'>📋 <strong>Google Sheet URL</strong></div>", unsafe_allow_html=True)
         
         spreadsheet_url = st.text_input(
@@ -443,7 +461,6 @@ with st.sidebar:
         )
         
         if spreadsheet_url:
-            # Load projects
             projects_df = load_projects_from_sheet(gc, spreadsheet_url)
             
             if not projects_df.empty and 'project_name' in projects_df.columns:
@@ -453,7 +470,6 @@ with st.sidebar:
                 selected_project = st.selectbox("Chọn dự án", ["-- Chọn Dự Án --"] + project_list, label_visibility="collapsed")
                 
                 if selected_project != "-- Chọn Dự Án --":
-                    # Load KPI targets from settings
                     project_settings = projects_df[projects_df['project_name'] == selected_project].iloc[0]
                     
                     st.markdown("<div style='color: white; margin: 16px 0 8px 0;'>🎯 <strong>KPI Targets</strong></div>", unsafe_allow_html=True)
@@ -487,7 +503,6 @@ with st.sidebar:
 
 # Main Content
 if gc and spreadsheet_url and selected_project != "-- Chọn Dự Án --":
-    # Load master data from Google Sheets
     master_df = load_master_from_sheet(gc, spreadsheet_url, selected_project)
     
     if uploaded_file:
@@ -498,7 +513,7 @@ if gc and spreadsheet_url and selected_project != "-- Chọn Dự Án --":
             df_history = calculate_historical_kpi(df, all_dates)
             df_curr = df[df['Date'] == curr_date].copy()
             
-            # Calculate trends
+            # Calculate trends - dùng ngày liền kề (hôm qua) cho Workstation
             prev_date = all_dates[1] if len(all_dates) > 1 else None
             
             if prev_date is not None:
@@ -594,9 +609,11 @@ if gc and spreadsheet_url and selected_project != "-- Chọn Dự Án --":
                         index=0
                     )
                     compare_date = compare_options[selected_compare_label]
+                    compare_date_str = pd.to_datetime(compare_date).strftime('%d/%m/%Y')
                 else:
                     selected_compare_label = None
                     compare_date = None
+                    compare_date_str = None
                     st.info("Chỉ có 1 ngày dữ liệu")
                     
             with col_hist:
@@ -614,9 +631,11 @@ if gc and spreadsheet_url and selected_project != "-- Chọn Dự Án --":
                     pct = (cnt / total_kw) * 100 if total_kw > 0 else 0
                     
                     comp_data = comparison.get(f'top{lim}', {})
+                    comp_count = comp_data.get('compare', cnt)
                     delta = comp_data.get('delta', 0)
                     delta_pct = comp_data.get('delta_pct', 0)
                     
+                    # FIX #1: Logic đúng - delta dương = tăng, delta âm = giảm
                     if delta > 0:
                         trend_html = f'<div class="trend up">↑ +{delta}</div>'
                         trend_class = "success"
@@ -627,15 +646,19 @@ if gc and spreadsheet_url and selected_project != "-- Chọn Dự Án --":
                         trend_html = f'<div class="trend stable">— 0</div>'
                         trend_class = "info"
                     
-                    compare_text = f"vs {selected_compare_label}: {delta:+d} ({delta_pct:+.1f}%)" if selected_compare_label else ""
+                    compare_text = f"vs {compare_date_str}: {delta:+d} ({delta_pct:+.1f}%)" if compare_date_str else ""
                     
+                    # FIX #2: Hiển thị số KW cần thêm
                     target_html = ""
                     if lim in kpi:
-                        gap = pct - kpi[lim]
-                        if gap >= 0:
-                            target_html = f'<div class="target-status met">✓ Đạt +{gap:.1f}%</div>'
+                        target_kw = int(total_kw * kpi[lim] / 100)  # Số KW cần đạt
+                        gap_kw = cnt - target_kw  # Số KW chênh lệch
+                        gap_pct = pct - kpi[lim]
+                        
+                        if gap_pct >= 0:
+                            target_html = f'<div class="target-status met">✓ Đạt +{gap_pct:.1f}% (+{gap_kw} KW)</div>'
                         else:
-                            target_html = f'<div class="target-status miss">✗ Thiếu {gap:.1f}%</div>'
+                            target_html = f'<div class="target-status miss">✗ Thiếu {abs(gap_pct):.1f}% ({gap_kw} KW)</div>'
                     
                     st.markdown(f"""
                     <div class="kpi-card {trend_class}">
@@ -669,13 +692,17 @@ if gc and spreadsheet_url and selected_project != "-- Chọn Dự Án --":
                         trend_html = f'<div class="trend stable">— 0</div>'
                         trend_class = "info"
                     
+                    # FIX #2: Hiển thị số KW cần thêm
                     target_html = ""
                     if lim in kpi:
-                        gap = pct - kpi[lim]
-                        if gap >= 0:
-                            target_html = f'<div class="target-status met">✓ Đạt +{gap:.1f}%</div>'
+                        target_kw = int(total_kw * kpi[lim] / 100)
+                        gap_kw = cnt - target_kw
+                        gap_pct = pct - kpi[lim]
+                        
+                        if gap_pct >= 0:
+                            target_html = f'<div class="target-status met">✓ Đạt +{gap_pct:.1f}% (+{gap_kw} KW)</div>'
                         else:
-                            target_html = f'<div class="target-status miss">✗ Thiếu {gap:.1f}%</div>'
+                            target_html = f'<div class="target-status miss">✗ Thiếu {abs(gap_pct):.1f}% ({gap_kw} KW)</div>'
                     
                     st.markdown(f"""
                     <div class="kpi-card {trend_class}">
@@ -803,6 +830,16 @@ if gc and spreadsheet_url and selected_project != "-- Chọn Dự Án --":
             </div>
             """, unsafe_allow_html=True)
             
+            # FIX #4: Hiển thị ngày đang so sánh trong Workstation
+            if prev_date is not None:
+                prev_date_str = pd.to_datetime(prev_date).strftime('%d/%m/%Y')
+                curr_date_str = pd.to_datetime(curr_date).strftime('%d/%m/%Y')
+                st.markdown(f"""
+                <div class="workstation-compare-badge">
+                    📅 So sánh: <strong>{curr_date_str}</strong> vs <strong>{prev_date_str}</strong> (hôm qua)
+                </div>
+                """, unsafe_allow_html=True)
+            
             def analyze_issue(row):
                 t = clean_url_for_compare(row['Target URL'])
                 c = clean_url_for_compare(row['Actual_URL']) if pd.notna(row.get('Actual_URL')) else ""
@@ -890,9 +927,9 @@ if gc and spreadsheet_url and selected_project != "-- Chọn Dự Án --":
             """, unsafe_allow_html=True)
     else:
         st.markdown("""
-        <div style="text-align: center; padding: 60px 20px; background: white; border-radius: 16px; margin-top: 20px;">
+        <div style="text-align: center; padding: 60px 20px; background: white; border-radius: 16px; margin-top: 20px; border-top: 4px solid #2563eb;">
             <div style="font-size: 48px; margin-bottom: 16px;">📤</div>
-            <h3 style="color: #374151; margin-bottom: 8px;">Chưa có dữ liệu ranking</h3>
+            <h3 style="color: #1e40af; margin-bottom: 8px;">Chưa có dữ liệu ranking</h3>
             <p style="color: #6b7280;">Vui lòng upload file ranking ở sidebar để bắt đầu phân tích</p>
         </div>
         """, unsafe_allow_html=True)
@@ -901,7 +938,7 @@ else:
     st.markdown("""
     <div style="text-align: center; padding: 40px 20px;">
         <div style="font-size: 64px; margin-bottom: 24px;">📊</div>
-        <h1 style="font-size: 32px; font-weight: 700; color: #1f2937; margin-bottom: 12px;">
+        <h1 style="font-size: 32px; font-weight: 700; color: #1e40af; margin-bottom: 12px;">
             SEO Command Center
         </h1>
         <p style="font-size: 16px; color: #6b7280; max-width: 500px; margin: 0 auto 32px auto;">
@@ -951,16 +988,3 @@ else:
             </ol>
         </div>
         """, unsafe_allow_html=True)
-    
-    st.markdown("""
-    <div class="setup-card" style="margin-top: 0;">
-        <h3>📊 Template Google Sheet</h3>
-        <p>Copy template này để bắt đầu nhanh:</p>
-        <a href="https://docs.google.com/spreadsheets/d/1EXAMPLE_TEMPLATE_ID/copy" target="_blank" 
-           style="display: inline-block; background: #6366f1; color: white; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-weight: 600;">
-            📋 Copy Template
-        </a>
-    </div>
-    """, unsafe_allow_html=True)
-
-
