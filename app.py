@@ -830,15 +830,56 @@ if gc and spreadsheet_url and selected_project != "-- Chọn Dự Án --":
             </div>
             """, unsafe_allow_html=True)
             
-            # FIX #4: Hiển thị ngày đang so sánh trong Workstation
-            if prev_date is not None:
-                prev_date_str = pd.to_datetime(prev_date).strftime('%d/%m/%Y')
+            # FIX #4: Dropdown chọn ngày so sánh cho Workstation
+            ws_compare_options = get_available_compare_dates(all_dates, curr_date)
+            
+            if ws_compare_options:
+                ws_col1, ws_col2 = st.columns([1, 3])
+                with ws_col1:
+                    ws_selected_compare = st.selectbox(
+                        "📅 So sánh với:",
+                        options=list(ws_compare_options.keys()),
+                        index=0,
+                        key="workstation_compare"
+                    )
+                    ws_compare_date = ws_compare_options[ws_selected_compare]
+                    ws_compare_date_str = pd.to_datetime(ws_compare_date).strftime('%d/%m/%Y')
+                
+                # Tính lại Change và Trend theo ngày đã chọn
+                ws_prev = df[df['Date'] == ws_compare_date][['Keyword_Join', 'Rank']].copy()
+                ws_prev = ws_prev.rename(columns={'Rank': 'Rank_Prev_WS'})
+                df_curr = df_curr.merge(ws_prev, on='Keyword_Join', how='left')
+                
+                def calc_change_ws(row):
+                    curr = row['Rank']
+                    prev = row['Rank_Prev_WS']
+                    if pd.isna(curr) or pd.isna(prev):
+                        return 0
+                    return int(prev) - int(curr)
+                
+                df_curr['Change_WS'] = df_curr.apply(calc_change_ws, axis=1)
+                
+                df_curr['Trend_Info_WS'] = df_curr.apply(
+                    lambda row: classify_trend_extended(row['Rank'], row['Rank_Prev_WS']), axis=1
+                )
+                df_curr['Trend_Label_WS'] = df_curr['Trend_Info_WS'].apply(lambda x: x['label'])
+                df_curr['Trend_Type_WS'] = df_curr['Trend_Info_WS'].apply(lambda x: x['type'])
+                df_curr['Trend_Severity_WS'] = df_curr['Trend_Info_WS'].apply(lambda x: x['severity'])
+                
                 curr_date_str = pd.to_datetime(curr_date).strftime('%d/%m/%Y')
-                st.markdown(f"""
-                <div class="workstation-compare-badge">
-                    📅 So sánh: <strong>{curr_date_str}</strong> vs <strong>{prev_date_str}</strong> (hôm qua)
-                </div>
-                """, unsafe_allow_html=True)
+                with ws_col2:
+                    st.markdown(f"""
+                    <div class="workstation-compare-badge" style="margin-top: 28px;">
+                        📊 Đang xem: <strong>{curr_date_str}</strong> so với <strong>{ws_compare_date_str}</strong>
+                    </div>
+                    """, unsafe_allow_html=True)
+            else:
+                # Nếu chỉ có 1 ngày, dùng data mặc định
+                df_curr['Change_WS'] = df_curr['Change']
+                df_curr['Trend_Label_WS'] = df_curr['Trend_Label']
+                df_curr['Trend_Type_WS'] = df_curr['Trend_Type']
+                df_curr['Trend_Severity_WS'] = df_curr['Trend_Severity']
+                st.info("Chỉ có 1 ngày dữ liệu")
             
             def analyze_issue(row):
                 t = clean_url_for_compare(row['Target URL'])
@@ -878,7 +919,7 @@ if gc and spreadsheet_url and selected_project != "-- Chọn Dự Án --":
                     v = v[v['Rank'].notna() & (v['Rank'] <= top_val)]
             
             if sel_trend != "All":
-                v = v[v['Trend_Label'] == sel_trend]
+                v = v[v['Trend_Label_WS'] == sel_trend]
             
             if sel_issue != "All": 
                 v = v[v['Issue'] == sel_issue]
@@ -890,10 +931,10 @@ if gc and spreadsheet_url and selected_project != "-- Chọn Dự Án --":
                     v['Actual_URL'].astype(str).str.lower().str.contains(s, na=False)
                 ]
 
-            v = v.sort_values(by=['Trend_Severity', 'Rank'], ascending=[False, True])
+            v = v.sort_values(by=['Trend_Severity_WS', 'Rank'], ascending=[False, True])
             
             v['Rank_Display'] = v['Rank'].apply(lambda x: int(x) if pd.notna(x) else ">100")
-            v['Change_Display'] = v['Change'].apply(lambda x: f"{int(x):+d}" if x != 0 else "-")
+            v['Change_Display'] = v['Change_WS'].apply(lambda x: f"{int(x):+d}" if x != 0 else "-")
 
             st.markdown(f"""
             <div class="data-table-header">
@@ -902,10 +943,10 @@ if gc and spreadsheet_url and selected_project != "-- Chọn Dự Án --":
             """, unsafe_allow_html=True)
 
             st.dataframe(
-                v[['Keyword', 'Topic', 'Rank_Display', 'Change_Display', 'Trend_Label', 'Issue', 'Actual_URL', 'Target URL']].rename(columns={
+                v[['Keyword', 'Topic', 'Rank_Display', 'Change_Display', 'Trend_Label_WS', 'Issue', 'Actual_URL', 'Target URL']].rename(columns={
                     'Rank_Display': 'Rank',
                     'Change_Display': 'Δ',
-                    'Trend_Label': 'Xu hướng'
+                    'Trend_Label_WS': 'Xu hướng'
                 }), 
                 use_container_width=True, 
                 height=500,
@@ -917,12 +958,12 @@ if gc and spreadsheet_url and selected_project != "-- Chọn Dự Án --":
             
             st.markdown(f"""
             <div class="stats-bar">
-                <div class="stat-item">🚀 Tăng mạnh: <span class="value">{len(v[v['Trend_Type']=='surge'])}</span></div>
-                <div class="stat-item">↑ Tăng: <span class="value">{len(v[v['Trend_Type']=='up'])}</span></div>
-                <div class="stat-item">↓ Giảm: <span class="value">{len(v[v['Trend_Type']=='down'])}</span></div>
-                <div class="stat-item">🔥 Giảm mạnh: <span class="value">{len(v[v['Trend_Type']=='crash'])}</span></div>
-                <div class="stat-item">⚠ Rớt: <span class="value">{len(v[v['Trend_Type']=='dropped'])}</span></div>
-                <div class="stat-item">✦ Mới: <span class="value">{len(v[v['Trend_Type']=='new'])}</span></div>
+                <div class="stat-item">🚀 Tăng mạnh: <span class="value">{len(v[v['Trend_Type_WS']=='surge'])}</span></div>
+                <div class="stat-item">↑ Tăng: <span class="value">{len(v[v['Trend_Type_WS']=='up'])}</span></div>
+                <div class="stat-item">↓ Giảm: <span class="value">{len(v[v['Trend_Type_WS']=='down'])}</span></div>
+                <div class="stat-item">🔥 Giảm mạnh: <span class="value">{len(v[v['Trend_Type_WS']=='crash'])}</span></div>
+                <div class="stat-item">⚠ Rớt: <span class="value">{len(v[v['Trend_Type_WS']=='dropped'])}</span></div>
+                <div class="stat-item">✦ Mới: <span class="value">{len(v[v['Trend_Type_WS']=='new'])}</span></div>
             </div>
             """, unsafe_allow_html=True)
     else:
