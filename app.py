@@ -432,17 +432,6 @@ with st.sidebar:
         </div>
         """, unsafe_allow_html=True)
         
-        # --- ĐOẠN CODE DEBUG MỚI ĐÃ ĐƯỢC THÊM VÀO ---
-        spreadsheet_url_input = st.secrets.get("spreadsheet_url", "")
-        if spreadsheet_url_input:
-            try:
-                sh = gc.open_by_url(spreadsheet_url_input)
-                worksheet_list = [ws.title for ws in sh.worksheets()]
-                st.sidebar.info(f"📑 Các tab hiện có: {', '.join(worksheet_list)}")
-            except:
-                pass
-        # ---------------------------------------------
-        
         # Spreadsheet URL
         st.markdown("<div style='color: white; margin-bottom: 8px;'>📋 <strong>Google Sheet URL</strong></div>", unsafe_allow_html=True)
         
@@ -973,3 +962,5 @@ else:
         </a>
     </div>
     """, unsafe_allow_html=True)
+
+
