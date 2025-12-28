@@ -3,7 +3,7 @@ import pandas as pd
 import unicodedata
 from google.oauth2.service_account import Credentials
 import gspread
-from io import StringIO # Thêm thư viện để xử lý text copy/paste
+from io import StringIO
 
 # --- CẤU HÌNH GIAO DIỆN ---
 st.set_page_config(
@@ -13,7 +13,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# === MODERN CSS STYLES (GIỮ NGUYÊN) ===
+# === MODERN CSS STYLES ===
 st.markdown("""
 <style>
     :root {
@@ -73,22 +73,35 @@ st.markdown("""
     .section-header h2 { margin: 0; font-size: 18px; font-weight: 600; color: var(--gray-800); }
     .section-header .icon { width: 32px; height: 32px; background: var(--primary); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; color: white; font-size: 16px; }
     
-    /* ACTION CARDS (NEW) */
-    .action-card {
-        background: white; border-radius: var(--radius-lg); padding: 20px;
+    /* GAP ANALYSIS CARD */
+    .gap-card {
+        background: white; border-radius: var(--radius-lg); padding: 24px;
         box-shadow: var(--shadow-md); border: 1px solid var(--gray-100);
-        height: 100%; transition: all 0.2s ease;
+        margin-bottom: 20px;
     }
-    .action-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
-    .action-card h4 { margin: 0 0 12px 0; font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
-    .action-card .action-list { margin: 0; padding: 0; list-style: none; }
-    .action-card .action-item { 
-        padding: 10px; border-bottom: 1px solid var(--gray-100); display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    .gap-stat { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--gray-100); }
+    .gap-val { font-size: 24px; font-weight: 700; color: var(--primary-dark); }
+    .gap-label { font-size: 13px; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.5px; }
+    
+    .topic-row {
+        display: flex; align-items: center; gap: 12px; padding: 12px; 
+        background: var(--gray-50); border-radius: var(--radius-md); margin-bottom: 8px;
+        transition: all 0.2s;
     }
-    .action-card .action-item:last-child { border-bottom: none; }
-    .action-card .action-label { font-size: 13px; font-weight: 500; color: var(--gray-700); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .action-card .action-sub { font-size: 11px; color: var(--gray-500); }
-    .action-card .action-badge { padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+    .topic-row:hover { background: white; box-shadow: var(--shadow-sm); transform: translateX(4px); }
+    .topic-rank { 
+        width: 28px; height: 28px; background: var(--warning); color: white; 
+        border-radius: 50%; display: flex; align-items: center; justify-content: center; 
+        font-weight: 700; font-size: 14px; flex-shrink: 0;
+    }
+    .topic-info { flex: 1; min-width: 0; }
+    .topic-name { font-weight: 600; font-size: 14px; color: var(--gray-800); margin-bottom: 2px; }
+    .topic-desc { font-size: 12px; color: var(--gray-500); display: flex; gap: 10px; }
+    .topic-action { 
+        font-size: 12px; font-weight: 600; color: var(--primary); 
+        background: var(--primary-bg); padding: 4px 10px; border-radius: 12px;
+        white-space: nowrap;
+    }
     
     .kpi-card {
         background: white; border-radius: var(--radius-lg); padding: 20px;
@@ -290,7 +303,6 @@ def classify_trend_extended(current_rank, previous_rank, threshold=100):
 
 # --- DATA PROCESSING ---
 
-# Update: Hàm này giờ chấp nhận raw_df để dùng cho cả file upload và paste
 def process_ranking_data(raw_df, master_df):
     try:
         df = raw_df.copy()
@@ -441,43 +453,56 @@ def calculate_topic_health(df_curr, top_n_threshold=10):
     
     return topic_health.reset_index().sort_values('In_Top_Pct', ascending=False)
 
-# === NEW FEATURE: PRIORITY ENGINE ===
-def calculate_priority_actions(df_curr, kpi_top10_target):
-    # 1. Quick Fix: Rớt từ Top 10 xuống 11-15 (Cần sửa ngay)
-    # Điều kiện: Rank hiện tại 11-15 VÀ Rank trước đó <= 10
-    quick_fix = df_curr[
-        (df_curr['Rank'] >= 11) & (df_curr['Rank'] <= 15) & 
-        (df_curr['Rank_Prev'] <= 10)
-    ]
+# === NEW FEATURE: KPI GAP FILLER ===
+def calculate_kpi_gap_actions(df_curr, kpi_settings):
+    results = {}
     
-    # 2. Striking Distance: Ngưỡng cửa thiên đường (Rank 11-20)
-    # Gom nhóm theo URL để tối ưu
-    striking = df_curr[(df_curr['Rank'] >= 11) & (df_curr['Rank'] <= 20)].copy()
-    if not striking.empty:
-        striking['Distance_Score'] = 1 # Có thể update logic phức tạp hơn sau này
+    # Định nghĩa vùng Striking Distance cho từng KPI
+    striking_ranges = {
+        3: (4, 10),
+        5: (6, 10),
+        10: (11, 20),
+        30: (31, 40)
+    }
+    
+    total_kw = len(df_curr)
+    
+    for kpi_level, target_pct in kpi_settings.items():
+        if kpi_level not in striking_ranges: continue
         
-        striking_grouped = striking.groupby('Target URL').agg({
+        # 1. Tính Gap
+        current_count = len(df_curr[df_curr['Rank'].notna() & (df_curr['Rank'] <= kpi_level)])
+        target_count = int(total_kw * target_pct / 100)
+        gap_count = target_count - current_count
+        
+        if gap_count <= 0:
+            results[kpi_level] = {'status': 'met', 'gap': 0, 'data': pd.DataFrame()}
+            continue
+            
+        # 2. Tìm Topic cứu tinh
+        min_rank, max_rank = striking_ranges[kpi_level]
+        striking_keywords = df_curr[(df_curr['Rank'] >= min_rank) & (df_curr['Rank'] <= max_rank)]
+        
+        if striking_keywords.empty:
+            results[kpi_level] = {'status': 'miss', 'gap': gap_count, 'data': pd.DataFrame()}
+            continue
+            
+        # Gom nhóm theo Topic
+        topic_analysis = striking_keywords.groupby('Topic').agg({
             'Keyword': 'count',
-            'Rank': 'mean',
-            'Topic': lambda x: x.mode()[0] if not x.mode().empty else 'Mix'
-        }).reset_index()
-        striking_grouped = striking_grouped[striking_grouped['Target URL'] != '']
-        striking_grouped = striking_grouped.sort_values('Keyword', ascending=False).head(5)
-    else:
-        striking_grouped = pd.DataFrame()
+            'Target URL': lambda x: x.mode()[0] if not x.mode().empty else 'N/A' # Tìm URL phổ biến nhất trong nhóm này
+        }).reset_index().rename(columns={'Keyword': 'Striking_Count', 'Target URL': 'Best_URL'})
         
-    # 3. Topic Gap: Topic nào đang thiếu KPI nhiều nhất
-    # KPI Target mặc định lấy từ settings (vd 70%)
-    topic_stats = df_curr.groupby('Topic').agg({
-        'Keyword': 'count',
-        'Rank': lambda x: ((x <= 10).sum() / x.count() * 100)
-    }).rename(columns={'Rank': 'Current_Pct'})
-    
-    topic_stats['Gap'] = topic_stats['Current_Pct'] - kpi_top10_target
-    # Lấy những topic Gap âm (chưa đạt) và sort theo Gap (tệ nhất lên đầu)
-    topic_gap = topic_stats[topic_stats['Gap'] < 0].sort_values('Gap', ascending=True).head(5)
-    
-    return quick_fix, striking_grouped, topic_gap
+        topic_analysis['Fill_Pct'] = (topic_analysis['Striking_Count'] / gap_count * 100).clip(upper=100)
+        topic_analysis = topic_analysis.sort_values('Striking_Count', ascending=False).head(5)
+        
+        results[kpi_level] = {
+            'status': 'miss',
+            'gap': gap_count,
+            'data': topic_analysis
+        }
+        
+    return results
 
 # === MAIN APP ===
 
@@ -488,14 +513,14 @@ with st.sidebar:
         <div style="font-size: 24px; font-weight: 700; color: white; display: flex; align-items: center; justify-content: center; gap: 10px;">
             📊 SEO Center
         </div>
-        <div style="font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 4px;">Version 11.0 - AI Action</div>
+        <div style="font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 4px;">Version 12.0 - Gap Filler</div>
     </div>
     """, unsafe_allow_html=True)
     
     gc = get_google_connection()
     
-    raw_df_input = None # Biến chứa data thô
-    kpi_settings = {} # Biến chứa KPI
+    raw_df_input = None 
+    kpi_settings = {} 
 
     if gc:
         st.markdown("""
@@ -525,22 +550,20 @@ with st.sidebar:
                 if selected_project != "-- Chọn Dự Án --":
                     project_settings = projects_df[projects_df['project_name'] == selected_project].iloc[0]
                     
-                    # Load KPI Settings
-                    kpi_settings = {
-                        3: int(project_settings.get('kpi_top3', 30)),
-                        5: int(project_settings.get('kpi_top5', 50)),
-                        10: int(project_settings.get('kpi_top10', 70)),
-                        30: int(project_settings.get('kpi_top30', 90))
-                    }
+                    # === KPI SETTINGS (MANUAL INPUT RETURNED) ===
+                    st.markdown("<div style='color: white; margin: 16px 0 8px 0;'>🎯 <strong>KPI Targets (%)</strong></div>", unsafe_allow_html=True)
                     
-                    st.markdown("<div style='color: white; margin: 16px 0 8px 0;'>🎯 <strong>KPI Targets</strong></div>", unsafe_allow_html=True)
                     col_k1, col_k2 = st.columns(2)
                     with col_k1:
-                         st.metric("Top 10 Target", f"{kpi_settings[10]}%")
+                         kpi_3 = st.number_input("Top 3", value=int(project_settings.get('kpi_top3', 30)), min_value=0, max_value=100)
+                         kpi_10 = st.number_input("Top 10", value=int(project_settings.get('kpi_top10', 70)), min_value=0, max_value=100)
                     with col_k2:
-                         st.metric("Top 3 Target", f"{kpi_settings[3]}%")
+                         kpi_5 = st.number_input("Top 5", value=int(project_settings.get('kpi_top5', 50)), min_value=0, max_value=100)
+                         kpi_30 = st.number_input("Top 30", value=int(project_settings.get('kpi_top30', 90)), min_value=0, max_value=100)
+
+                    kpi_settings = {3: kpi_3, 5: kpi_5, 10: kpi_10, 30: kpi_30}
                     
-                    # === INPUT METHOD (NEW) ===
+                    # === INPUT METHOD ===
                     st.markdown("<div style='color: white; margin: 24px 0 8px 0;'>📥 <strong>Input Ranking</strong></div>", unsafe_allow_html=True)
                     input_method = st.radio("Chọn phương thức:", ["Upload Excel", "Paste Data"], label_visibility="collapsed")
                     
@@ -555,7 +578,6 @@ with st.sidebar:
                         paste_data = st.text_area("Dán dữ liệu Excel vào đây", height=150, placeholder="Copy từ Excel bao gồm cả Header...")
                         if paste_data:
                             try:
-                                # Đọc text paste dưới dạng CSV tab-separated
                                 raw_df_input = pd.read_csv(StringIO(paste_data), sep='\t')
                             except Exception as e:
                                 st.error(f"Lỗi đọc dữ liệu paste: {e}")
@@ -628,124 +650,75 @@ if gc and spreadsheet_url and selected_project != "-- Chọn Dự Án --":
             </div>
             """, unsafe_allow_html=True)
             
-            # === ALERTS ===
-            dropped_kw = df_curr[df_curr['Trend_Type'] == 'dropped']
-            new_kw = df_curr[df_curr['Trend_Type'] == 'new']
-            
-            if len(dropped_kw) > 0 or len(new_kw) > 0:
-                col_a1, col_a2 = st.columns(2)
-                with col_a1:
-                    if len(dropped_kw) > 0:
-                        dropped_list = ', '.join(dropped_kw['Keyword'].head(3).tolist())
-                        more = f" và {len(dropped_kw) - 3} others" if len(dropped_kw) > 3 else ""
-                        st.markdown(f"""
-                        <div class="alert-box danger">
-                            <div class="icon-wrapper">⚠</div>
-                            <div class="content">
-                                <div class="title">{len(dropped_kw)} từ khóa rớt khỏi Top 100</div>
-                                <div class="description">{dropped_list}{more}</div>
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                with col_a2:
-                    if len(new_kw) > 0:
-                        new_list = ', '.join(new_kw['Keyword'].head(3).tolist())
-                        more = f" và {len(new_kw) - 3} others" if len(new_kw) > 3 else ""
-                        st.markdown(f"""
-                        <div class="alert-box success">
-                            <div class="icon-wrapper">✦</div>
-                            <div class="content">
-                                <div class="title">{len(new_kw)} từ khóa mới vào Top 100</div>
-                                <div class="description">{new_list}{more}</div>
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True)
-
-            # === ACTION CENTER (NEW FEATURE) ===
+            # === ACTION CENTER (KPI GAP FILLER) ===
             st.markdown("""
             <div class="section-header">
                 <div class="icon">⚡</div>
-                <h2>Action Center (Gợi ý ưu tiên)</h2>
+                <h2>Action Center (Lấp đầy KPI)</h2>
             </div>
             """, unsafe_allow_html=True)
             
-            quick_fix_df, striking_df, topic_gap_df = calculate_priority_actions(df_curr, kpi_settings.get(10, 70))
+            gap_analysis = calculate_kpi_gap_actions(df_curr, kpi_settings)
             
-            ac_col1, ac_col2, ac_col3 = st.columns(3)
+            tab3, tab5, tab10, tab30 = st.tabs(["🎯 Top 3", "🎯 Top 5", "🎯 Top 10", "🎯 Top 30"])
             
-            # Card 1: Cứu hộ (Quick Fix)
-            with ac_col1:
-                st.markdown("""
-                <div class="action-card">
-                    <h4 style="color: var(--danger);">🚑 Cứu Hộ Khẩn Cấp <span style="font-weight:400; font-size:12px; color:var(--gray-500); margin-left:auto;">Rớt từ Top 10</span></h4>
-                """, unsafe_allow_html=True)
+            def render_gap_tab(kpi_lvl):
+                info = gap_analysis.get(kpi_lvl)
+                if not info: 
+                    st.info("Chưa có cấu hình cho KPI này")
+                    return
                 
-                if not quick_fix_df.empty:
-                    for idx, row in quick_fix_df.head(5).iterrows():
-                        st.markdown(f"""
-                        <div class="action-item">
-                            <div style="flex:1; min-width:0;">
-                                <div class="action-label" title="{row['Keyword']}">{row['Keyword']}</div>
-                                <div class="action-sub">{row['Target URL'][:30]}...</div>
-                            </div>
-                            <div class="action-badge" style="background:#fee2e2; color:#ef4444;">
-                                {int(row['Rank_Prev'])} ➝ {int(row['Rank'])}
-                            </div>
+                if info['status'] == 'met':
+                    st.markdown(f"""
+                    <div class="alert-box success">
+                        <div class="icon-wrapper">✓</div>
+                        <div class="content">
+                            <div class="title">Tuyệt vời! Đã đạt KPI Top {kpi_lvl}</div>
+                            <div class="description">Hãy duy trì phong độ hiện tại.</div>
                         </div>
-                        """, unsafe_allow_html=True)
+                    </div>
+                    """, unsafe_allow_html=True)
                 else:
-                    st.markdown("<div style='color:var(--gray-500); font-size:13px; font-style:italic;'>Không có từ khóa nào vừa rớt khỏi Top 10.</div>", unsafe_allow_html=True)
-                st.markdown("</div>", unsafe_allow_html=True)
-            
-            # Card 2: Striking Distance
-            with ac_col2:
-                st.markdown("""
-                <div class="action-card">
-                    <h4 style="color: var(--primary);">🚀 Cơ Hội Tăng Trưởng <span style="font-weight:400; font-size:12px; color:var(--gray-500); margin-left:auto;">Rank 11-20</span></h4>
-                """, unsafe_allow_html=True)
-                
-                if not striking_df.empty:
-                    for idx, row in striking_df.iterrows():
-                        url_short = str(row['Target URL']).replace('https://', '').replace('www.', '').split('/')[0] + '/...'
-                        st.markdown(f"""
-                        <div class="action-item">
-                            <div style="flex:1; min-width:0;">
-                                <div class="action-label" title="{row['Target URL']}">URL: ...{str(row['Target URL'])[-25:]}</div>
-                                <div class="action-sub">Topic: {row['Topic']}</div>
-                            </div>
-                            <div class="action-badge" style="background:#eff6ff; color:#2563eb;">
-                                {row['Keyword']} KWs
-                            </div>
+                    gap = info['gap']
+                    st.markdown(f"""
+                    <div class="gap-card">
+                        <div class="gap-stat">
+                            <div class="gap-label">Mục tiêu còn thiếu</div>
+                            <div class="gap-val" style="color:var(--danger);">{gap} Keywords</div>
                         </div>
-                        """, unsafe_allow_html=True)
-                else:
-                     st.markdown("<div style='color:var(--gray-500); font-size:13px; font-style:italic;'>Không có URL tiềm năng trong vùng 11-20.</div>", unsafe_allow_html=True)
-                st.markdown("</div>", unsafe_allow_html=True)
+                        <div style="margin-bottom:12px; font-weight:600; font-size:14px;">🏆 Top Topic "Cứu Tinh" (Striking Distance):</div>
+                    """, unsafe_allow_html=True)
+                    
+                    topic_df = info['data']
+                    if not topic_df.empty:
+                        for idx, row in topic_df.iterrows():
+                            fill_pct = row['Fill_Pct']
+                            count = row['Striking_Count']
+                            url_short = str(row['Best_URL'])[-40:] if len(str(row['Best_URL'])) > 40 else str(row['Best_URL'])
+                            
+                            st.markdown(f"""
+                            <div class="topic-row">
+                                <div class="topic-rank">{idx+1}</div>
+                                <div class="topic-info">
+                                    <div class="topic-name">{row['Topic']}</div>
+                                    <div class="topic-desc">
+                                        <span title="Best URL to push">🔗 ...{url_short}</span>
+                                    </div>
+                                </div>
+                                <div class="topic-action" title="Số keyword ở ngưỡng cửa">
+                                    +{count} KWs (Lấp {fill_pct:.0f}% Gap)
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                    else:
+                        st.warning(f"Không tìm thấy từ khóa nào ở ngưỡng cửa (Striking Distance) để đẩy vào Top {kpi_lvl}.")
+                    
+                    st.markdown("</div>", unsafe_allow_html=True)
 
-            # Card 3: Topic Gap
-            with ac_col3:
-                st.markdown("""
-                <div class="action-card">
-                    <h4 style="color: var(--warning);">📉 Topic Cần Push <span style="font-weight:400; font-size:12px; color:var(--gray-500); margin-left:auto;">Miss KPI</span></h4>
-                """, unsafe_allow_html=True)
-                
-                if not topic_gap_df.empty:
-                    for idx, row in topic_gap_df.iterrows():
-                        gap_val = abs(row['Gap'])
-                        st.markdown(f"""
-                        <div class="action-item">
-                            <div style="flex:1; min-width:0;">
-                                <div class="action-label">{idx}</div>
-                                <div class="action-sub">Đang có: {row['Current_Pct']:.1f}% Top 10</div>
-                            </div>
-                            <div class="action-badge" style="background:#fffbeb; color:#d97706;">
-                                Thiếu {gap_val:.1f}%
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                else:
-                    st.markdown("<div style='color:var(--success); font-size:13px; font-weight:500;'>Tuyệt vời! Tất cả Topic đều đạt KPI.</div>", unsafe_allow_html=True)
-                st.markdown("</div>", unsafe_allow_html=True)
+            with tab3: render_gap_tab(3)
+            with tab5: render_gap_tab(5)
+            with tab10: render_gap_tab(10)
+            with tab30: render_gap_tab(30)
 
 
             # === KPI SECTION (Keep Existing) ===
