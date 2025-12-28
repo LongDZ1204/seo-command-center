@@ -620,6 +620,21 @@ def render_action_center(df_curr, total_kw, kpi_targets):
     </div>
     """, unsafe_allow_html=True)
     
+    # Giải thích cách hoạt động
+    with st.expander("ℹ️ Cách hoạt động của Action Center", expanded=False):
+        st.markdown("""
+        **Action Center** giúp bạn tìm ra **Topic và URL cần ưu tiên tối ưu** để đạt KPI nhanh nhất.
+        
+        | Tab | Mục tiêu | Vùng tấn công | Ý nghĩa |
+        |-----|----------|---------------|---------|
+        | Top 3 | Đưa KW vào Top 3 | Rank 4-10 | KW đang ở Top 4-10, cần đẩy lên Top 3 |
+        | Top 5 | Đưa KW vào Top 5 | Rank 6-15 | KW đang ở Top 6-15, cần đẩy lên Top 5 |
+        | Top 10 | Đưa KW vào Top 10 | Rank 11-20 | KW đang ở trang 2, cần đẩy lên trang 1 |
+        | Top 30 | Đưa KW vào Top 30 | Rank 31-50 | KW đang ở trang 4-5, cần đẩy lên trang 1-3 |
+        
+        **Topic Cứu Tinh**: Topic có nhiều KW nhất trong vùng tấn công → tối ưu 1 URL có thể đẩy nhiều KW cùng lúc.
+        """)
+    
     # Tính toán Gap
     gap_data = calculate_gap_analysis(df_curr, total_kw, kpi_targets)
     
@@ -679,8 +694,8 @@ def render_action_center(df_curr, total_kw, kpi_targets):
                     <div class="content">
                         <div class="title">Vùng tấn công: Rank {min_rank} - {max_rank}</div>
                         <div class="description">
-                            Tìm thấy <strong>{len(df_striking)}</strong> keywords đang ở vùng này. 
-                            Đẩy các keywords này lên sẽ giúp tăng số lượng Top {target_top}.
+                            Tìm thấy <strong>{len(df_striking)}</strong> keywords đang ở Rank {min_rank}-{max_rank}. 
+                            Tối ưu để đẩy lên <strong>Top {target_top}</strong>.
                         </div>
                     </div>
                 </div>
@@ -703,19 +718,19 @@ def render_action_center(df_curr, total_kw, kpi_targets):
                             <div style="display: flex; justify-content: space-between; align-items: flex-start;">
                                 <div>
                                     <div class="topic-name">{row['Topic']} <span style="font-size: 12px; color: var(--primary);">{priority_badge}</span></div>
-                                    <div class="kw-count">📊 {int(row['KW_Count'])} keywords trong vùng tấn công (Avg Rank: {row['Avg_Rank']:.1f})</div>
+                                    <div class="kw-count">📊 <strong>{int(row['KW_Count'])}</strong> keywords đang ở <strong>Rank {min_rank}-{max_rank}</strong> (Avg: {row['Avg_Rank']:.1f})</div>
                                 </div>
                             </div>
                             <div class="best-url">
                                 <strong>🔗 Best URL để tối ưu:</strong><br>
                                 {row['Best_URL']}<br>
-                                <span style="color: var(--success);">({int(row['Best_URL_KW_Count'])} keywords đang rank với URL này)</span>
+                                <span style="color: var(--success);">→ Tối ưu URL này có thể đẩy <strong>{int(row['Best_URL_KW_Count'])}</strong> keywords lên Top {target_top}</span>
                             </div>
                         </div>
                         """, unsafe_allow_html=True)
                     
                     # Bảng chi tiết
-                    with st.expander(f"📋 Xem chi tiết {len(df_striking)} keywords trong vùng tấn công"):
+                    with st.expander(f"📋 Xem chi tiết {len(df_striking)} keywords trong Rank {min_rank}-{max_rank}"):
                         display_df = df_striking[['Keyword', 'Topic', 'Rank', 'Actual_URL']].copy()
                         display_df['Rank'] = display_df['Rank'].astype(int)
                         display_df = display_df.sort_values(['Topic', 'Rank'])
