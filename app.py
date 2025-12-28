@@ -1,165 +1,157 @@
-"""
-SEO Command Center v2.0 - Google Sheets Integration
-Streamlit App với Google Sheets làm database cho Master Data
-"""
-
 import streamlit as st
 import pandas as pd
-import numpy as np
-from datetime import datetime, timedelta
-import plotly.express as px
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-import json
-import io
+import unicodedata
+from google.oauth2.service_account import Credentials
+import gspread
 
-# Google Sheets imports
-try:
-    import gspread
-    from google.oauth2.service_account import Credentials
-    GSPREAD_AVAILABLE = True
-except ImportError:
-    GSPREAD_AVAILABLE = False
-
-# ==================== PAGE CONFIG ====================
+# --- CẤU HÌNH GIAO DIỆN ---
 st.set_page_config(
-    page_title="SEO Command Center",
-    page_icon="🎯",
-    layout="wide",
+    page_title="SEO Command Center", 
+    layout="wide", 
+    page_icon="📊",
     initial_sidebar_state="expanded"
 )
 
-# ==================== CUSTOM CSS ====================
+# === MODERN CSS STYLES - MÀU XANH DƯƠNG CHỦ ĐẠO ===
 st.markdown("""
 <style>
-    /* Main container */
-    .main .block-container {
-        padding-top: 1rem;
-        padding-bottom: 1rem;
-        max-width: 100%;
+    :root {
+        --primary: #2563eb;
+        --primary-light: #3b82f6;
+        --primary-dark: #1d4ed8;
+        --primary-bg: #eff6ff;
+        --success: #10b981;
+        --success-light: #34d399;
+        --success-bg: #ecfdf5;
+        --warning: #f59e0b;
+        --warning-light: #fbbf24;
+        --warning-bg: #fffbeb;
+        --danger: #ef4444;
+        --danger-light: #f87171;
+        --danger-bg: #fef2f2;
+        --info: #0ea5e9;
+        --info-light: #38bdf8;
+        --info-bg: #f0f9ff;
+        --gray-50: #f9fafb;
+        --gray-100: #f3f4f6;
+        --gray-200: #e5e7eb;
+        --gray-300: #d1d5db;
+        --gray-400: #9ca3af;
+        --gray-500: #6b7280;
+        --gray-600: #4b5563;
+        --gray-700: #374151;
+        --gray-800: #1f2937;
+        --gray-900: #111827;
+        --radius-sm: 6px;
+        --radius-md: 10px;
+        --radius-lg: 16px;
+        --radius-xl: 20px;
+        --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+        --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+        --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
     }
     
-    /* Metric cards */
-    .metric-card {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        border-radius: 12px;
-        padding: 1.2rem;
-        color: white;
-        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
-        margin-bottom: 1rem;
+    .stApp { background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); }
+    .main .block-container { padding-top: 2rem; padding-bottom: 2rem; max-width: 1400px; }
+    
+    [data-testid="stSidebar"] { background: linear-gradient(180deg, #1e3a5f 0%, #1e40af 100%); }
+    [data-testid="stSidebar"] .stMarkdown { color: var(--gray-300); }
+    [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 { color: white !important; }
+    [data-testid="stSidebar"] label { color: var(--gray-300) !important; }
+    
+    .dashboard-header {
+        background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+        padding: 24px 32px; border-radius: var(--radius-xl); margin-bottom: 24px;
+        box-shadow: var(--shadow-lg); color: white;
     }
+    .dashboard-header h1 { margin: 0; font-size: 28px; font-weight: 700; display: flex; align-items: center; gap: 12px; }
+    .dashboard-header .subtitle { margin-top: 8px; opacity: 0.9; font-size: 14px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+    .dashboard-header .stat-badge { background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 20px; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; }
     
-    .metric-card.green {
-        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-        box-shadow: 0 4px 15px rgba(17, 153, 142, 0.3);
+    .section-header { display: flex; align-items: center; gap: 10px; margin: 32px 0 16px 0; padding-bottom: 12px; border-bottom: 2px solid var(--primary-light); }
+    .section-header h2 { margin: 0; font-size: 18px; font-weight: 600; color: var(--gray-800); }
+    .section-header .icon { width: 32px; height: 32px; background: var(--primary); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; color: white; font-size: 16px; }
+    
+    .kpi-card {
+        background: white; border-radius: var(--radius-lg); padding: 20px;
+        box-shadow: var(--shadow-md); border: 1px solid var(--gray-100);
+        transition: all 0.2s ease; position: relative; overflow: hidden;
+        min-height: 220px; display: flex; flex-direction: column;
     }
+    .kpi-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+    .kpi-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: var(--primary); }
+    .kpi-card.success::before { background: var(--success); }
+    .kpi-card.warning::before { background: var(--warning); }
+    .kpi-card.danger::before { background: var(--danger); }
+    .kpi-card.info::before { background: var(--info); }
+    .kpi-card .label { font-size: 12px; font-weight: 600; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+    .kpi-card .value { font-size: 32px; font-weight: 700; color: var(--gray-900); line-height: 1; margin-bottom: 4px; }
+    .kpi-card .percentage { font-size: 14px; color: var(--gray-500); margin-bottom: 12px; }
+    .kpi-card .trend { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 600; padding: 4px 10px; border-radius: 20px; }
+    .kpi-card .trend.up { background: var(--success-bg); color: var(--success); }
+    .kpi-card .trend.down { background: var(--danger-bg); color: var(--danger); }
+    .kpi-card .trend.stable { background: var(--gray-100); color: var(--gray-500); }
+    .kpi-card .compare { font-size: 12px; color: var(--gray-400); margin-top: 8px; }
+    .kpi-card .target-status { margin-top: 12px; padding: 8px 12px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+    .kpi-card .target-status.met { background: var(--success-bg); color: var(--success); }
+    .kpi-card .target-status.miss { background: var(--danger-bg); color: var(--danger); }
     
-    .metric-card.orange {
-        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-        box-shadow: 0 4px 15px rgba(245, 87, 108, 0.3);
-    }
+    .alert-box { padding: 16px 20px; border-radius: var(--radius-md); margin-bottom: 16px; display: flex; align-items: flex-start; gap: 12px; }
+    .alert-box.danger { background: var(--danger-bg); border: 1px solid #fecaca; }
+    .alert-box.success { background: var(--success-bg); border: 1px solid #a7f3d0; }
+    .alert-box.warning { background: var(--warning-bg); border: 1px solid #fde68a; }
+    .alert-box.info { background: var(--primary-bg); border: 1px solid #bfdbfe; }
+    .alert-box .icon-wrapper { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 18px; }
+    .alert-box.danger .icon-wrapper { background: var(--danger); color: white; }
+    .alert-box.success .icon-wrapper { background: var(--success); color: white; }
+    .alert-box.info .icon-wrapper { background: var(--primary); color: white; }
+    .alert-box .content { flex: 1; }
+    .alert-box .title { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+    .alert-box.danger .title { color: var(--danger); }
+    .alert-box.success .title { color: var(--success); }
+    .alert-box.info .title { color: var(--primary); }
+    .alert-box .description { font-size: 13px; color: var(--gray-600); }
     
-    .metric-card.blue {
-        background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-        box-shadow: 0 4px 15px rgba(79, 172, 254, 0.3);
-    }
+    .stats-bar { display: flex; gap: 24px; padding: 12px 20px; background: var(--primary-bg); border-radius: var(--radius-md); margin-top: 16px; flex-wrap: wrap; border: 1px solid #bfdbfe; }
+    .stats-bar .stat-item { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--gray-600); }
+    .stats-bar .stat-item .value { font-weight: 600; color: var(--primary-dark); }
     
-    .metric-title {
-        font-size: 0.85rem;
-        opacity: 0.9;
-        margin-bottom: 0.3rem;
-    }
+    .data-table-header { background: var(--primary-bg); padding: 16px 20px; border-bottom: 1px solid #bfdbfe; display: flex; justify-content: space-between; align-items: center; border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
+    .data-table-header .title { font-weight: 600; color: var(--primary-dark); display: flex; align-items: center; gap: 8px; }
+    .data-table-header .count { background: var(--primary); color: white; padding: 2px 10px; border-radius: 20px; font-size: 12px; }
+    .data-table-header .compare-info { font-size: 12px; color: var(--gray-500); background: white; padding: 4px 12px; border-radius: 20px; }
     
-    .metric-value {
-        font-size: 1.8rem;
-        font-weight: 700;
-    }
+    .setup-card { background: white; padding: 32px; border-radius: var(--radius-lg); box-shadow: var(--shadow-md); margin-bottom: 24px; border-top: 4px solid var(--primary); }
+    .setup-card h3 { color: var(--primary-dark); margin-bottom: 16px; }
+    .setup-card ol { color: var(--gray-600); line-height: 2; }
+    .setup-card code { background: var(--primary-bg); padding: 2px 8px; border-radius: 4px; font-size: 13px; color: var(--primary-dark); }
     
-    .metric-delta {
-        font-size: 0.8rem;
-        margin-top: 0.3rem;
-    }
+    .connection-status { padding: 12px 16px; border-radius: var(--radius-md); margin-bottom: 16px; display: flex; align-items: center; gap: 10px; }
+    .connection-status.connected { background: var(--success-bg); color: var(--success); }
+    .connection-status.disconnected { background: var(--danger-bg); color: var(--danger); }
     
-    /* Status badges */
-    .status-badge {
-        display: inline-block;
-        padding: 0.25rem 0.75rem;
-        border-radius: 20px;
-        font-size: 0.75rem;
-        font-weight: 600;
-    }
-    
-    .status-top3 { background: #d4edda; color: #155724; }
-    .status-top10 { background: #cce5ff; color: #004085; }
-    .status-top20 { background: #fff3cd; color: #856404; }
-    .status-below { background: #f8d7da; color: #721c24; }
-    
-    /* Progress bar */
-    .progress-container {
-        background: #e9ecef;
-        border-radius: 10px;
-        overflow: hidden;
-        height: 24px;
-        margin: 0.5rem 0;
-    }
-    
-    .progress-bar {
-        height: 100%;
-        border-radius: 10px;
-        display: flex;
+    /* Workstation compare badge */
+    .workstation-compare-badge { 
+        background: var(--primary-bg); 
+        border: 1px solid var(--primary-light); 
+        padding: 8px 16px; 
+        border-radius: var(--radius-md); 
+        margin-bottom: 16px;
+        display: inline-flex;
         align-items: center;
-        justify-content: center;
-        color: white;
-        font-weight: 600;
-        font-size: 0.8rem;
-        transition: width 0.5s ease;
-    }
-    
-    /* Sidebar styling */
-    .css-1d391kg {
-        padding-top: 1rem;
-    }
-    
-    /* Hide Streamlit branding */
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    
-    /* Table styling */
-    .dataframe {
-        font-size: 0.85rem !important;
-    }
-    
-    /* Tab styling */
-    .stTabs [data-baseweb="tab-list"] {
         gap: 8px;
-    }
-    
-    .stTabs [data-baseweb="tab"] {
-        background-color: #f0f2f6;
-        border-radius: 8px 8px 0 0;
-        padding: 10px 20px;
-    }
-    
-    .stTabs [aria-selected="true"] {
-        background-color: #667eea;
-        color: white;
+        font-size: 13px;
+        color: var(--primary-dark);
     }
 </style>
 """, unsafe_allow_html=True)
 
+# --- GOOGLE SHEETS CONNECTION ---
 
-# ==================== GOOGLE SHEETS FUNCTIONS ====================
-
-def init_google_sheets():
-    """Khởi tạo kết nối Google Sheets từ Streamlit secrets"""
-    if not GSPREAD_AVAILABLE:
-        return None, "Thư viện gspread chưa được cài đặt"
-    
+@st.cache_resource
+def get_google_connection():
+    """Kết nối Google Sheets từ Streamlit Secrets"""
     try:
-        # Đọc credentials từ Streamlit secrets
-        if "gcp_service_account" not in st.secrets:
-            return None, "Chưa cấu hình Google Sheets credentials trong Streamlit secrets"
-        
         credentials = Credentials.from_service_account_info(
             st.secrets["gcp_service_account"],
             scopes=[
@@ -168,860 +160,872 @@ def init_google_sheets():
             ]
         )
         client = gspread.authorize(credentials)
-        return client, None
+        return client
     except Exception as e:
-        return None, f"Lỗi kết nối: {str(e)}"
-
-
-def get_projects_from_sheets(client, spreadsheet_url):
-    """Lấy danh sách projects từ Google Sheets"""
-    try:
-        spreadsheet = client.open_by_url(spreadsheet_url)
-        # Đọc sheet "Settings" để lấy danh sách projects
-        try:
-            settings_sheet = spreadsheet.worksheet("Settings")
-            projects = settings_sheet.col_values(1)[1:]  # Bỏ header
-            return [p for p in projects if p.strip()], None
-        except gspread.exceptions.WorksheetNotFound:
-            # Nếu không có Settings sheet, lấy từ tên các worksheet
-            worksheets = spreadsheet.worksheets()
-            projects = [ws.title for ws in worksheets if ws.title.startswith("Master_")]
-            projects = [p.replace("Master_", "") for p in projects]
-            return projects, None
-    except Exception as e:
-        return [], f"Lỗi đọc projects: {str(e)}"
-
-
-def get_master_data_from_sheets(client, spreadsheet_url, project_name):
-    """Lấy master data của một project từ Google Sheets"""
-    try:
-        spreadsheet = client.open_by_url(spreadsheet_url)
-        worksheet = spreadsheet.worksheet(f"Master_{project_name}")
-        data = worksheet.get_all_records()
-        df = pd.DataFrame(data)
-        return df, None
-    except gspread.exceptions.WorksheetNotFound:
-        return None, f"Không tìm thấy sheet Master_{project_name}"
-    except Exception as e:
-        return None, f"Lỗi đọc master data: {str(e)}"
-
-
-def save_master_data_to_sheets(client, spreadsheet_url, project_name, df):
-    """Lưu master data lên Google Sheets"""
-    try:
-        spreadsheet = client.open_by_url(spreadsheet_url)
-        
-        # Tạo hoặc lấy worksheet
-        try:
-            worksheet = spreadsheet.worksheet(f"Master_{project_name}")
-            worksheet.clear()
-        except gspread.exceptions.WorksheetNotFound:
-            worksheet = spreadsheet.add_worksheet(
-                title=f"Master_{project_name}",
-                rows=len(df) + 100,
-                cols=len(df.columns) + 5
-            )
-        
-        # Cập nhật data
-        worksheet.update([df.columns.tolist()] + df.values.tolist())
-        
-        # Cập nhật Settings sheet
-        update_settings_sheet(client, spreadsheet_url, project_name)
-        
-        return True, None
-    except Exception as e:
-        return False, f"Lỗi lưu data: {str(e)}"
-
-
-def update_settings_sheet(client, spreadsheet_url, project_name):
-    """Cập nhật Settings sheet với project mới"""
-    try:
-        spreadsheet = client.open_by_url(spreadsheet_url)
-        
-        try:
-            settings_sheet = spreadsheet.worksheet("Settings")
-        except gspread.exceptions.WorksheetNotFound:
-            settings_sheet = spreadsheet.add_worksheet(title="Settings", rows=100, cols=10)
-            settings_sheet.update_cell(1, 1, "Project Name")
-            settings_sheet.update_cell(1, 2, "Created Date")
-        
-        # Kiểm tra project đã tồn tại chưa
-        existing_projects = settings_sheet.col_values(1)[1:]
-        if project_name not in existing_projects:
-            next_row = len(existing_projects) + 2
-            settings_sheet.update_cell(next_row, 1, project_name)
-            settings_sheet.update_cell(next_row, 2, datetime.now().strftime("%Y-%m-%d"))
-        
-        return True
-    except Exception as e:
-        return False
-
-
-# ==================== DATA PROCESSING FUNCTIONS ====================
-
-def process_ranking_data(ranking_df, master_df):
-    """Xử lý và merge ranking data với master data"""
-    
-    # Chuẩn hóa tên cột
-    ranking_df.columns = ranking_df.columns.str.strip().str.lower()
-    master_df.columns = master_df.columns.str.strip().str.lower()
-    
-    # Tìm cột keyword
-    keyword_cols = ['keyword', 'keywords', 'từ khóa', 'tu khoa', 'query']
-    ranking_kw_col = None
-    master_kw_col = None
-    
-    for col in keyword_cols:
-        if col in ranking_df.columns:
-            ranking_kw_col = col
-            break
-    
-    for col in keyword_cols:
-        if col in master_df.columns:
-            master_kw_col = col
-            break
-    
-    if not ranking_kw_col or not master_kw_col:
-        return None, "Không tìm thấy cột Keyword trong file"
-    
-    # Tìm cột ranking
-    rank_cols = ['rank', 'position', 'ranking', 'vị trí', 'vi tri', 'pos']
-    rank_col = None
-    for col in rank_cols:
-        if col in ranking_df.columns:
-            rank_col = col
-            break
-    
-    if not rank_col:
-        return None, "Không tìm thấy cột Rank/Position trong file ranking"
-    
-    # Chuẩn hóa keyword để merge
-    ranking_df['keyword_clean'] = ranking_df[ranking_kw_col].astype(str).str.strip().str.lower()
-    master_df['keyword_clean'] = master_df[master_kw_col].astype(str).str.strip().str.lower()
-    
-    # Merge data
-    merged = pd.merge(
-        master_df,
-        ranking_df[[ranking_kw_col, rank_col, 'keyword_clean']],
-        on='keyword_clean',
-        how='left',
-        suffixes=('', '_ranking')
-    )
-    
-    # Rename và clean columns
-    merged = merged.rename(columns={rank_col: 'current_rank'})
-    merged['current_rank'] = pd.to_numeric(merged['current_rank'], errors='coerce')
-    
-    # Tìm cột target
-    target_cols = ['target', 'target_rank', 'mục tiêu', 'muc tieu', 'target rank']
-    target_col = None
-    for col in target_cols:
-        if col in merged.columns:
-            target_col = col
-            break
-    
-    if target_col:
-        merged['target_rank'] = pd.to_numeric(merged[target_col], errors='coerce').fillna(10)
-    else:
-        merged['target_rank'] = 10
-    
-    # Tìm cột topic
-    topic_cols = ['topic', 'chủ đề', 'chu de', 'category', 'nhóm', 'nhom', 'group']
-    topic_col = None
-    for col in topic_cols:
-        if col in merged.columns:
-            topic_col = col
-            break
-    
-    if topic_col:
-        merged['topic'] = merged[topic_col].fillna('Uncategorized')
-    else:
-        merged['topic'] = 'Uncategorized'
-    
-    # Tạo các cột phân tích
-    merged['status'] = merged['current_rank'].apply(classify_rank)
-    merged['on_target'] = merged['current_rank'] <= merged['target_rank']
-    merged['gap'] = merged['current_rank'] - merged['target_rank']
-    
-    # Clean up
-    merged = merged.drop(columns=['keyword_clean'], errors='ignore')
-    
-    return merged, None
-
-
-def classify_rank(rank):
-    """Phân loại rank thành các nhóm"""
-    if pd.isna(rank) or rank == 0:
-        return 'Not Ranked'
-    elif rank <= 3:
-        return 'Top 3'
-    elif rank <= 10:
-        return 'Top 10'
-    elif rank <= 20:
-        return 'Top 20'
-    elif rank <= 50:
-        return 'Top 50'
-    else:
-        return 'Below 50'
-
-
-def calculate_metrics(df):
-    """Tính toán các metrics chính"""
-    total_keywords = len(df)
-    ranked_keywords = df['current_rank'].notna().sum()
-    
-    metrics = {
-        'total_keywords': total_keywords,
-        'ranked_keywords': ranked_keywords,
-        'not_ranked': total_keywords - ranked_keywords,
-        'top_3': (df['current_rank'] <= 3).sum(),
-        'top_10': (df['current_rank'] <= 10).sum(),
-        'top_20': (df['current_rank'] <= 20).sum(),
-        'on_target': df['on_target'].sum() if 'on_target' in df.columns else 0,
-        'avg_rank': df['current_rank'].mean(),
-        'median_rank': df['current_rank'].median(),
-    }
-    
-    # Tính % đạt target
-    metrics['target_rate'] = (metrics['on_target'] / total_keywords * 100) if total_keywords > 0 else 0
-    metrics['top_10_rate'] = (metrics['top_10'] / total_keywords * 100) if total_keywords > 0 else 0
-    
-    return metrics
-
-
-# ==================== VISUALIZATION FUNCTIONS ====================
-
-def create_status_distribution_chart(df):
-    """Tạo biểu đồ phân bố ranking status"""
-    status_counts = df['status'].value_counts()
-    
-    colors = {
-        'Top 3': '#10b981',
-        'Top 10': '#3b82f6',
-        'Top 20': '#f59e0b',
-        'Top 50': '#f97316',
-        'Below 50': '#ef4444',
-        'Not Ranked': '#6b7280'
-    }
-    
-    fig = px.pie(
-        values=status_counts.values,
-        names=status_counts.index,
-        color=status_counts.index,
-        color_discrete_map=colors,
-        hole=0.4
-    )
-    
-    fig.update_traces(textposition='inside', textinfo='percent+label')
-    fig.update_layout(
-        showlegend=True,
-        legend=dict(orientation="h", yanchor="bottom", y=-0.2),
-        margin=dict(t=20, b=20, l=20, r=20),
-        height=350
-    )
-    
-    return fig
-
-
-def create_topic_performance_chart(df):
-    """Tạo biểu đồ performance theo topic"""
-    if 'topic' not in df.columns:
         return None
-    
-    topic_stats = df.groupby('topic').agg({
-        'current_rank': ['mean', 'count'],
-        'on_target': 'sum'
-    }).round(1)
-    
-    topic_stats.columns = ['avg_rank', 'total', 'on_target']
-    topic_stats['target_rate'] = (topic_stats['on_target'] / topic_stats['total'] * 100).round(1)
-    topic_stats = topic_stats.reset_index()
-    
-    fig = make_subplots(
-        rows=1, cols=2,
-        specs=[[{"type": "bar"}, {"type": "bar"}]],
-        subplot_titles=("Avg Rank by Topic", "Target Achievement Rate")
-    )
-    
-    # Avg Rank chart
-    fig.add_trace(
-        go.Bar(
-            x=topic_stats['topic'],
-            y=topic_stats['avg_rank'],
-            marker_color='#6366f1',
-            name='Avg Rank'
-        ),
-        row=1, col=1
-    )
-    
-    # Target Rate chart
-    fig.add_trace(
-        go.Bar(
-            x=topic_stats['topic'],
-            y=topic_stats['target_rate'],
-            marker_color='#10b981',
-            name='Target Rate %'
-        ),
-        row=1, col=2
-    )
-    
-    fig.update_layout(
-        showlegend=False,
-        height=350,
-        margin=dict(t=40, b=20, l=20, r=20)
-    )
-    
-    return fig
 
+@st.cache_data(ttl=300)
+def load_projects_from_sheet(_client, spreadsheet_url):
+    """Load danh sách projects từ Settings tab"""
+    try:
+        spreadsheet = _client.open_by_url(spreadsheet_url)
+        settings_sheet = spreadsheet.worksheet("Settings")
+        data = settings_sheet.get_all_records()
+        return pd.DataFrame(data)
+    except Exception as e:
+        st.error(f"Lỗi load Settings: {e}")
+        return pd.DataFrame()
 
-def create_rank_distribution_chart(df):
-    """Tạo biểu đồ phân bố ranking"""
-    ranked_df = df[df['current_rank'].notna() & (df['current_rank'] > 0)]
-    
-    fig = px.histogram(
-        ranked_df,
-        x='current_rank',
-        nbins=20,
-        color_discrete_sequence=['#6366f1']
-    )
-    
-    fig.update_layout(
-        xaxis_title="Ranking Position",
-        yaxis_title="Number of Keywords",
-        showlegend=False,
-        height=300,
-        margin=dict(t=20, b=40, l=40, r=20)
-    )
-    
-    return fig
+@st.cache_data(ttl=300)
+def load_master_from_sheet(_client, spreadsheet_url, project_name):
+    """Load Master data cho project cụ thể"""
+    try:
+        spreadsheet = _client.open_by_url(spreadsheet_url)
+        master_sheet = spreadsheet.worksheet(f"Master_{project_name}")
+        data = master_sheet.get_all_records()
+        df = pd.DataFrame(data)
+        
+        df.columns = [clean_text_strict(c) for c in df.columns]
+        
+        col_map = {}
+        for c in df.columns:
+            if 'keyword' in c: col_map['keyword'] = c
+            elif 'topic' in c: col_map['topic'] = c
+            elif 'target' in c and 'url' in c: col_map['target_url'] = c
+        
+        df = df.rename(columns={
+            col_map.get('keyword', 'keyword'): 'Keyword',
+            col_map.get('topic', 'topic'): 'Topic',
+            col_map.get('target_url', 'target_url'): 'Target URL',
+        })
+        
+        if 'Keyword' in df.columns:
+            df['Keyword_Join'] = df['Keyword'].apply(clean_text_strict)
+        
+        return df
+    except Exception as e:
+        st.error(f"Lỗi load Master_{project_name}: {e}")
+        return None
 
+# --- CORE UTILITIES ---
 
-def create_gap_analysis_chart(df):
-    """Tạo biểu đồ phân tích gap vs target"""
-    gap_df = df[df['current_rank'].notna()].copy()
-    gap_df['gap_category'] = pd.cut(
-        gap_df['gap'],
-        bins=[-float('inf'), -10, -5, 0, 5, 10, float('inf')],
-        labels=['Vượt >10', 'Vượt 5-10', 'Đạt target', 'Thiếu <5', 'Thiếu 5-10', 'Thiếu >10']
-    )
-    
-    gap_counts = gap_df['gap_category'].value_counts()
-    
-    colors = ['#10b981', '#34d399', '#6ee7b7', '#fcd34d', '#f97316', '#ef4444']
-    
-    fig = px.bar(
-        x=gap_counts.index,
-        y=gap_counts.values,
-        color=gap_counts.index,
-        color_discrete_sequence=colors
-    )
-    
-    fig.update_layout(
-        xaxis_title="Gap Category",
-        yaxis_title="Number of Keywords",
-        showlegend=False,
-        height=300,
-        margin=dict(t=20, b=40, l=40, r=20)
-    )
-    
-    return fig
+def clean_text_strict(text):
+    if pd.isna(text) or text == "":
+        return ""
+    text = str(text)
+    text = unicodedata.normalize('NFKC', text)
+    return text.strip().lower()
 
+def clean_url_for_compare(url):
+    if pd.isna(url) or url == "":
+        return ""
+    url = str(url).strip().lower()
+    url = url.replace("https://", "").replace("http://", "").replace("www.", "")
+    return url.rstrip('/')
 
-# ==================== UI COMPONENTS ====================
+def clean_rank(val):
+    try:
+        val = str(val).lower().strip()
+        if val in ['-', 'n/a', '', 'nan', 'none']: 
+            return None
+        result = int(float(val))
+        return result if result <= 100 else None
+    except: 
+        return None
 
-def render_metric_card(title, value, delta=None, color="purple"):
-    """Render một metric card"""
-    color_class = {
-        "purple": "",
-        "green": "green",
-        "orange": "orange",
-        "blue": "blue"
-    }.get(color, "")
+def safe_int(val, default=0):
+    if pd.isna(val):
+        return default
+    try:
+        return int(val)
+    except:
+        return default
+
+# --- TREND CLASSIFICATION ---
+
+def classify_trend_extended(current_rank, previous_rank, threshold=100):
+    curr_valid = current_rank is not None and not pd.isna(current_rank)
+    prev_valid = previous_rank is not None and not pd.isna(previous_rank)
     
-    delta_html = f'<div class="metric-delta">{delta}</div>' if delta else ''
+    if prev_valid and previous_rank <= threshold:
+        if not curr_valid:
+            return {'label': 'Rớt Top 100', 'type': 'dropped', 'severity': 5}
     
-    st.markdown(f"""
-    <div class="metric-card {color_class}">
-        <div class="metric-title">{title}</div>
-        <div class="metric-value">{value}</div>
-        {delta_html}
-    </div>
-    """, unsafe_allow_html=True)
-
-
-def render_progress_bar(value, max_value=100, label=""):
-    """Render progress bar với label"""
-    percentage = min(value / max_value * 100, 100) if max_value > 0 else 0
+    if curr_valid and current_rank <= threshold:
+        if not prev_valid:
+            return {'label': 'Mới vào Top 100', 'type': 'new', 'severity': 1}
     
-    if percentage >= 80:
-        color = "#10b981"
-    elif percentage >= 60:
-        color = "#3b82f6"
-    elif percentage >= 40:
-        color = "#f59e0b"
+    if not curr_valid:
+        return {'label': 'Ngoài Top 100', 'type': 'out', 'severity': 0}
+    
+    if not prev_valid:
+        return {'label': 'Đi ngang', 'type': 'stable', 'severity': 1}
+    
+    delta = int(previous_rank) - int(current_rank)
+    
+    if delta >= 10:
+        return {'label': 'Tăng mạnh', 'type': 'surge', 'severity': 2}
+    elif delta > 0:
+        return {'label': 'Tăng', 'type': 'up', 'severity': 2}
+    elif delta == 0:
+        return {'label': 'Đi ngang', 'type': 'stable', 'severity': 1}
+    elif delta > -10:
+        return {'label': 'Giảm', 'type': 'down', 'severity': 3}
     else:
-        color = "#ef4444"
+        return {'label': 'Giảm mạnh', 'type': 'crash', 'severity': 4}
+
+# --- DATA PROCESSING ---
+
+def process_ranking_data(uploaded_file, master_df):
+    try:
+        df = pd.read_excel(uploaded_file)
+        
+        rank_cols_lower = [str(c).lower().strip() for c in df.columns]
+        key_col, url_col = None, None
+        
+        for idx, c in enumerate(rank_cols_lower):
+            if 'keyword' in c: key_col = df.columns[idx]
+            if 'url' in c and 'target' not in c: url_col = df.columns[idx]
+            
+        if not key_col:
+            st.error("File Tracking thiếu cột Keyword!")
+            return pd.DataFrame(), [], []
+
+        rename_dict = {key_col: "Keyword"}
+        if url_col: rename_dict[url_col] = "Actual_URL"
+        df.rename(columns=rename_dict, inplace=True)
+        
+        id_vars = ['Keyword']
+        if "Actual_URL" in df.columns: id_vars.append("Actual_URL")
+        
+        date_cols = [c for c in df.columns if c not in id_vars]
+        df_long = pd.melt(df, id_vars=id_vars, value_vars=date_cols, var_name='Date_Raw', value_name='Rank')
+        
+        df_long['Date'] = pd.to_datetime(df_long['Date_Raw'], errors='coerce')
+        df_long = df_long.dropna(subset=['Date']) 
+        df_long['Rank'] = df_long['Rank'].apply(clean_rank)
+        df_long['Keyword_Join'] = df_long['Keyword'].apply(clean_text_strict)
+        
+        full_df = df_long.copy()
+        missing_keys = []
+        all_dates = sorted(df_long['Date'].unique(), reverse=True)
+
+        if master_df is not None and not master_df.empty:
+            full_df = pd.merge(df_long, master_df[['Keyword_Join', 'Topic', 'Target URL']], 
+                               on='Keyword_Join', how='left')
+            
+            missing_mask = full_df['Topic'].isna()
+            if missing_mask.any():
+                missing_keys = full_df[missing_mask]['Keyword'].unique().tolist()
+                
+            full_df['Topic'].fillna('Unmapped', inplace=True)
+            full_df['Target URL'].fillna('', inplace=True)
+        else:
+            full_df['Topic'] = 'Unknown'
+            full_df['Target URL'] = ''
+            missing_keys = full_df['Keyword'].unique().tolist()
+            
+        return full_df.sort_values(by=['Date', 'Keyword'], ascending=[False, True]), missing_keys, all_dates
+        
+    except Exception as e:
+        st.error(f"Lỗi Tracking File: {e}")
+        return pd.DataFrame(), [], []
+
+# --- ANALYSIS FUNCTIONS ---
+
+def calculate_historical_kpi(df_full, all_dates, top_n_list=[3, 5, 10, 15, 30, 50, 100]):
+    history_data = []
     
-    st.markdown(f"""
-    <div class="progress-container">
-        <div class="progress-bar" style="width: {percentage}%; background: {color};">
-            {label if label else f'{percentage:.1f}%'}
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-
-def render_status_badge(status):
-    """Render status badge"""
-    badge_class = {
-        'Top 3': 'status-top3',
-        'Top 10': 'status-top10',
-        'Top 20': 'status-top20',
-        'Top 50': 'status-below',
-        'Below 50': 'status-below',
-        'Not Ranked': 'status-below'
-    }.get(status, 'status-below')
+    for date in all_dates:
+        df_date = df_full[df_full['Date'] == date]
+        total_kw = len(df_date)
+        
+        if total_kw == 0:
+            continue
+            
+        row = {'Date': date, 'Total_KW': total_kw}
+        
+        for top_n in top_n_list:
+            count = len(df_date[df_date['Rank'].notna() & (df_date['Rank'] <= top_n)])
+            row[f'Top{top_n}_count'] = count
+            row[f'Top{top_n}_pct'] = (count / total_kw) * 100
+        
+        row['Out100_count'] = len(df_date[df_date['Rank'].isna()])
+        history_data.append(row)
     
-    return f'<span class="status-badge {badge_class}">{status}</span>'
+    return pd.DataFrame(history_data).sort_values('Date', ascending=False)
 
+def get_available_compare_dates(all_dates, current_date):
+    """FIX #3: Hiển thị ngày cụ thể trong dropdown"""
+    if len(all_dates) <= 1:
+        return {}
+    
+    compare_options = {}
+    other_dates = [d for d in all_dates if d != current_date]
+    
+    for date in other_dates:
+        days_diff = (current_date - date).days
+        date_str = pd.to_datetime(date).strftime('%d/%m/%Y')
+        
+        if days_diff == 1:
+            label = f"Hôm qua ({date_str})"
+        else:
+            label = f"{days_diff} ngày trước ({date_str})"
+        
+        compare_options[label] = date
+    
+    return compare_options
 
-# ==================== MAIN APP ====================
+def calculate_comparison(df_history, current_date, compare_date):
+    """FIX #1: Sửa logic so sánh - current vs compare (không phải compare vs current)"""
+    if df_history.empty or compare_date is None:
+        return {}
+    
+    curr_row = df_history[df_history['Date'] == current_date]
+    comp_row = df_history[df_history['Date'] == compare_date]
+    
+    if curr_row.empty or comp_row.empty:
+        return {}
+    
+    curr_row = curr_row.iloc[0]
+    comp_row = comp_row.iloc[0]
+    
+    results = {}
+    for top_n in [3, 5, 10, 15, 30, 50, 100]:
+        curr_count = safe_int(curr_row.get(f'Top{top_n}_count', 0))
+        comp_count = safe_int(comp_row.get(f'Top{top_n}_count', 0))
+        
+        # FIX: delta = current - compare (positive nếu hiện tại cao hơn)
+        delta = curr_count - comp_count
+        delta_pct = ((curr_count - comp_count) / comp_count * 100) if comp_count > 0 else 0
+        
+        results[f'top{top_n}'] = {
+            'current': curr_count,
+            'compare': comp_count,
+            'delta': delta,
+            'delta_pct': round(delta_pct, 1)
+        }
+    
+    return results
 
-def main():
-    # Header
+def calculate_topic_health(df_curr, top_n_threshold=10):
+    topic_stats = df_curr.groupby('Topic').agg({
+        'Keyword': 'count',
+    }).rename(columns={'Keyword': 'Total_KW'})
+    
+    df_in_top = df_curr[df_curr['Rank'].notna() & (df_curr['Rank'] <= top_n_threshold)]
+    in_top_counts = df_in_top.groupby('Topic').size().rename('In_Top')
+    
+    up_counts = df_curr[df_curr['Change'] > 0].groupby('Topic').size().rename('Up')
+    down_counts = df_curr[df_curr['Change'] < 0].groupby('Topic').size().rename('Down')
+    
+    dropped_counts = df_curr[df_curr['Trend_Type'] == 'dropped'].groupby('Topic').size().rename('Dropped')
+    new_counts = df_curr[df_curr['Trend_Type'] == 'new'].groupby('Topic').size().rename('New_Entry')
+    
+    topic_health = topic_stats.join([in_top_counts, up_counts, down_counts, dropped_counts, new_counts]).fillna(0)
+    
+    topic_health['In_Top_Pct'] = (topic_health['In_Top'] / topic_health['Total_KW'] * 100).round(1)
+    topic_health['Net_Flow'] = topic_health['Up'] - topic_health['Down']
+    
+    return topic_health.reset_index().sort_values('In_Top_Pct', ascending=False)
+
+# === MAIN APP ===
+
+# Sidebar
+with st.sidebar:
     st.markdown("""
-    <div style="text-align: center; padding: 1rem 0;">
-        <h1 style="color: #6366f1; margin-bottom: 0.5rem;">🎯 SEO Command Center</h1>
-        <p style="color: #6b7280;">Keyword Ranking Analysis Dashboard</p>
+    <div style="padding: 20px 0; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 20px;">
+        <div style="font-size: 24px; font-weight: 700; color: white; display: flex; align-items: center; justify-content: center; gap: 10px;">
+            📊 SEO Center
+        </div>
+        <div style="font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 4px;">Version 10.1 - Cloud Edition</div>
     </div>
     """, unsafe_allow_html=True)
     
-    # Sidebar
-    with st.sidebar:
-        st.markdown("### ⚙️ Cấu hình")
-        
-        # Data source selection
-        data_source = st.radio(
-            "Nguồn dữ liệu Master:",
-            ["📤 Upload File", "📊 Google Sheets"],
-            index=0
-        )
-        
-        st.markdown("---")
-        
-        # Variables để lưu data
-        master_df = None
-        ranking_df = None
-        project_name = "Default"
-        
-        if data_source == "📊 Google Sheets":
-            st.markdown("#### Google Sheets Setup")
-            
-            # Check if gspread is available
-            if not GSPREAD_AVAILABLE:
-                st.warning("⚠️ Cần cài đặt gspread. Thêm vào requirements.txt")
-                st.code("gspread\ngoogle-auth")
-            else:
-                # Check credentials
-                if "gcp_service_account" not in st.secrets:
-                    st.warning("⚠️ Chưa cấu hình credentials")
-                    
-                    with st.expander("📖 Hướng dẫn setup"):
-                        st.markdown("""
-                        **Bước 1:** Tạo Google Cloud Project
-                        1. Vào [console.cloud.google.com](https://console.cloud.google.com)
-                        2. Tạo project mới
-                        3. Enable Google Sheets API
-                        
-                        **Bước 2:** Tạo Service Account
-                        1. Vào IAM & Admin → Service Accounts
-                        2. Create Service Account
-                        3. Download JSON key
-                        
-                        **Bước 3:** Cấu hình Streamlit
-                        1. Vào App Settings trên Streamlit Cloud
-                        2. Thêm secret với format:
-                        ```toml
-                        [gcp_service_account]
-                        type = "service_account"
-                        project_id = "your-project"
-                        private_key_id = "..."
-                        private_key = "-----BEGIN PRIVATE KEY-----..."
-                        client_email = "...@...iam.gserviceaccount.com"
-                        ...
-                        ```
-                        
-                        **Bước 4:** Share Spreadsheet
-                        - Share với email của Service Account
-                        """)
-                else:
-                    # Connect to Google Sheets
-                    client, error = init_google_sheets()
-                    
-                    if error:
-                        st.error(f"❌ {error}")
-                    else:
-                        st.success("✅ Đã kết nối Google Sheets")
-                        
-                        spreadsheet_url = st.text_input(
-                            "URL Spreadsheet:",
-                            placeholder="https://docs.google.com/spreadsheets/d/..."
-                        )
-                        
-                        if spreadsheet_url:
-                            projects, error = get_projects_from_sheets(client, spreadsheet_url)
-                            
-                            if error:
-                                st.error(f"❌ {error}")
-                            elif projects:
-                                project_name = st.selectbox(
-                                    "Chọn Project:",
-                                    projects
-                                )
-                                
-                                if st.button("📥 Load Master Data"):
-                                    master_df, error = get_master_data_from_sheets(
-                                        client, spreadsheet_url, project_name
-                                    )
-                                    if error:
-                                        st.error(f"❌ {error}")
-                                    else:
-                                        st.session_state['master_df'] = master_df
-                                        st.session_state['project_name'] = project_name
-                                        st.success(f"✅ Đã load {len(master_df)} keywords")
-                            else:
-                                st.info("Chưa có project nào. Upload master file để tạo mới.")
-                        
-                        # Option to create new project
-                        with st.expander("➕ Tạo Project mới"):
-                            new_project = st.text_input("Tên project mới:")
-                            new_master_file = st.file_uploader(
-                                "Upload Master Excel:",
-                                type=['xlsx', 'xls', 'csv'],
-                                key="new_master"
-                            )
-                            
-                            if new_project and new_master_file and st.button("Tạo Project"):
-                                try:
-                                    if new_master_file.name.endswith('.csv'):
-                                        new_master_df = pd.read_csv(new_master_file)
-                                    else:
-                                        new_master_df = pd.read_excel(new_master_file)
-                                    
-                                    success, error = save_master_data_to_sheets(
-                                        client, spreadsheet_url, new_project, new_master_df
-                                    )
-                                    
-                                    if success:
-                                        st.success(f"✅ Đã tạo project {new_project}")
-                                        st.rerun()
-                                    else:
-                                        st.error(f"❌ {error}")
-                                except Exception as e:
-                                    st.error(f"❌ Lỗi: {str(e)}")
-        
-        else:  # Upload File mode
-            st.markdown("#### Upload Files")
-            
-            master_file = st.file_uploader(
-                "📋 Master File (Keywords + Topics):",
-                type=['xlsx', 'xls', 'csv'],
-                key="master"
-            )
-            
-            if master_file:
-                try:
-                    if master_file.name.endswith('.csv'):
-                        master_df = pd.read_csv(master_file)
-                    else:
-                        master_df = pd.read_excel(master_file)
-                    st.success(f"✅ {len(master_df)} keywords loaded")
-                    st.session_state['master_df'] = master_df
-                except Exception as e:
-                    st.error(f"❌ Lỗi đọc file: {str(e)}")
-        
-        st.markdown("---")
-        
-        # Ranking file upload (common for both modes)
-        st.markdown("#### 📊 Ranking Data")
-        ranking_file = st.file_uploader(
-            "Upload Ranking File:",
-            type=['xlsx', 'xls', 'csv'],
-            key="ranking"
-        )
-        
-        if ranking_file:
-            try:
-                if ranking_file.name.endswith('.csv'):
-                    ranking_df = pd.read_csv(ranking_file)
-                else:
-                    ranking_df = pd.read_excel(ranking_file)
-                st.success(f"✅ {len(ranking_df)} rows loaded")
-                st.session_state['ranking_df'] = ranking_df
-            except Exception as e:
-                st.error(f"❌ Lỗi đọc file: {str(e)}")
-        
-        # Process button
-        st.markdown("---")
-        if st.button("🚀 Phân tích", use_container_width=True, type="primary"):
-            master_df = st.session_state.get('master_df')
-            ranking_df = st.session_state.get('ranking_df')
-            
-            if master_df is None:
-                st.error("❌ Chưa có Master data")
-            elif ranking_df is None:
-                st.error("❌ Chưa upload Ranking file")
-            else:
-                with st.spinner("Đang xử lý..."):
-                    result_df, error = process_ranking_data(ranking_df, master_df)
-                    
-                    if error:
-                        st.error(f"❌ {error}")
-                    else:
-                        st.session_state['result_df'] = result_df
-                        st.session_state['metrics'] = calculate_metrics(result_df)
-                        st.success("✅ Phân tích hoàn tất!")
+    gc = get_google_connection()
     
-    # Main content
-    result_df = st.session_state.get('result_df')
-    metrics = st.session_state.get('metrics')
-    
-    if result_df is not None and metrics is not None:
-        # Metrics row
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            render_metric_card(
-                "Total Keywords",
-                f"{metrics['total_keywords']:,}",
-                f"Ranked: {metrics['ranked_keywords']:,}",
-                "purple"
-            )
-        
-        with col2:
-            render_metric_card(
-                "Top 10 Rate",
-                f"{metrics['top_10_rate']:.1f}%",
-                f"{metrics['top_10']:,} keywords",
-                "green"
-            )
-        
-        with col3:
-            render_metric_card(
-                "Target Achievement",
-                f"{metrics['target_rate']:.1f}%",
-                f"{metrics['on_target']:,} on target",
-                "blue"
-            )
-        
-        with col4:
-            render_metric_card(
-                "Avg Rank",
-                f"{metrics['avg_rank']:.1f}",
-                f"Median: {metrics['median_rank']:.0f}",
-                "orange"
-            )
-        
-        st.markdown("---")
-        
-        # Charts
-        tab1, tab2, tab3, tab4 = st.tabs([
-            "📊 Overview",
-            "📈 By Topic",
-            "🔍 Keyword Details",
-            "📥 Export"
-        ])
-        
-        with tab1:
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.markdown("##### Ranking Distribution")
-                fig = create_status_distribution_chart(result_df)
-                st.plotly_chart(fig, use_container_width=True)
-            
-            with col2:
-                st.markdown("##### Rank Position Histogram")
-                fig = create_rank_distribution_chart(result_df)
-                st.plotly_chart(fig, use_container_width=True)
-            
-            st.markdown("##### Gap Analysis (vs Target)")
-            fig = create_gap_analysis_chart(result_df)
-            st.plotly_chart(fig, use_container_width=True)
-        
-        with tab2:
-            if 'topic' in result_df.columns:
-                fig = create_topic_performance_chart(result_df)
-                if fig:
-                    st.plotly_chart(fig, use_container_width=True)
-                
-                # Topic breakdown table
-                st.markdown("##### Topic Summary")
-                topic_summary = result_df.groupby('topic').agg({
-                    'current_rank': ['count', 'mean'],
-                    'on_target': 'sum'
-                }).round(1)
-                topic_summary.columns = ['Total KWs', 'Avg Rank', 'On Target']
-                topic_summary['Target Rate'] = (topic_summary['On Target'] / topic_summary['Total KWs'] * 100).round(1)
-                topic_summary = topic_summary.sort_values('Target Rate', ascending=False)
-                
-                st.dataframe(topic_summary, use_container_width=True)
-            else:
-                st.info("Không có dữ liệu Topic trong file master")
-        
-        with tab3:
-            # Filters
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                status_filter = st.multiselect(
-                    "Status:",
-                    result_df['status'].unique(),
-                    default=result_df['status'].unique()
-                )
-            
-            with col2:
-                if 'topic' in result_df.columns:
-                    topic_filter = st.multiselect(
-                        "Topic:",
-                        result_df['topic'].unique(),
-                        default=result_df['topic'].unique()
-                    )
-                else:
-                    topic_filter = None
-            
-            with col3:
-                target_filter = st.radio(
-                    "Target Status:",
-                    ["All", "On Target", "Off Target"],
-                    horizontal=True
-                )
-            
-            # Apply filters
-            filtered_df = result_df[result_df['status'].isin(status_filter)]
-            
-            if topic_filter is not None:
-                filtered_df = filtered_df[filtered_df['topic'].isin(topic_filter)]
-            
-            if target_filter == "On Target":
-                filtered_df = filtered_df[filtered_df['on_target'] == True]
-            elif target_filter == "Off Target":
-                filtered_df = filtered_df[filtered_df['on_target'] == False]
-            
-            st.markdown(f"##### Showing {len(filtered_df):,} keywords")
-            
-            # Display table
-            display_cols = ['keyword', 'topic', 'current_rank', 'target_rank', 'gap', 'status', 'on_target']
-            display_cols = [c for c in display_cols if c in filtered_df.columns]
-            
-            # Find keyword column
-            keyword_col = None
-            for col in ['keyword', 'keywords', 'từ khóa', 'tu khoa', 'query']:
-                if col in filtered_df.columns:
-                    keyword_col = col
-                    break
-            
-            if keyword_col and keyword_col != 'keyword':
-                filtered_df = filtered_df.rename(columns={keyword_col: 'keyword'})
-            
-            st.dataframe(
-                filtered_df[display_cols].sort_values('current_rank'),
-                use_container_width=True,
-                height=500
-            )
-        
-        with tab4:
-            st.markdown("##### Export Options")
-            
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                # Export full report
-                output = io.BytesIO()
-                with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                    result_df.to_excel(writer, sheet_name='Full Report', index=False)
-                    
-                    # Summary sheet
-                    summary_data = {
-                        'Metric': ['Total Keywords', 'Ranked', 'Top 3', 'Top 10', 'Top 20', 'On Target', 'Avg Rank'],
-                        'Value': [
-                            metrics['total_keywords'],
-                            metrics['ranked_keywords'],
-                            metrics['top_3'],
-                            metrics['top_10'],
-                            metrics['top_20'],
-                            metrics['on_target'],
-                            round(metrics['avg_rank'], 1)
-                        ]
-                    }
-                    pd.DataFrame(summary_data).to_excel(writer, sheet_name='Summary', index=False)
-                
-                output.seek(0)
-                
-                st.download_button(
-                    label="📥 Download Full Report (Excel)",
-                    data=output,
-                    file_name=f"seo_report_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
-            
-            with col2:
-                # Export CSV
-                csv = result_df.to_csv(index=False)
-                st.download_button(
-                    label="📥 Download CSV",
-                    data=csv,
-                    file_name=f"seo_report_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-                    mime="text/csv"
-                )
-    
-    else:
-        # Welcome screen
+    if gc:
         st.markdown("""
-        <div style="text-align: center; padding: 3rem; background: #f8fafc; border-radius: 12px; margin: 2rem 0;">
-            <h2 style="color: #6366f1;">👋 Chào mừng đến SEO Command Center</h2>
-            <p style="color: #64748b; font-size: 1.1rem;">
-                Công cụ phân tích keyword ranking toàn diện
-            </p>
-            <br>
-            <div style="display: flex; justify-content: center; gap: 2rem; flex-wrap: wrap;">
-                <div style="text-align: left; max-width: 250px;">
-                    <h4>📋 Bước 1</h4>
-                    <p>Upload Master File hoặc kết nối Google Sheets</p>
-                </div>
-                <div style="text-align: left; max-width: 250px;">
-                    <h4>📊 Bước 2</h4>
-                    <p>Upload Ranking File từ tool tracking</p>
-                </div>
-                <div style="text-align: left; max-width: 250px;">
-                    <h4>🚀 Bước 3</h4>
-                    <p>Click "Phân tích" và xem kết quả</p>
-                </div>
-            </div>
+        <div class="connection-status connected">
+            ✓ Đã kết nối Google Sheets
         </div>
         """, unsafe_allow_html=True)
         
-        # Sample data format
-        with st.expander("📖 Xem format file mẫu"):
-            col1, col2 = st.columns(2)
+        st.markdown("<div style='color: white; margin-bottom: 8px;'>📋 <strong>Google Sheet URL</strong></div>", unsafe_allow_html=True)
+        
+        spreadsheet_url = st.text_input(
+            "Spreadsheet URL",
+            value=st.secrets.get("spreadsheet_url", ""),
+            label_visibility="collapsed",
+            placeholder="Paste Google Sheet URL..."
+        )
+        
+        if spreadsheet_url:
+            projects_df = load_projects_from_sheet(gc, spreadsheet_url)
             
-            with col1:
-                st.markdown("**Master File Format:**")
-                sample_master = pd.DataFrame({
-                    'Keyword': ['seo là gì', 'học seo', 'công cụ seo'],
-                    'Topic': ['Cơ bản', 'Học tập', 'Tools'],
-                    'Target': [10, 5, 10]
-                })
-                st.dataframe(sample_master)
+            if not projects_df.empty and 'project_name' in projects_df.columns:
+                project_list = projects_df['project_name'].tolist()
+                
+                st.markdown("<div style='color: white; margin: 16px 0 8px 0;'>📁 <strong>Project</strong></div>", unsafe_allow_html=True)
+                selected_project = st.selectbox("Chọn dự án", ["-- Chọn Dự Án --"] + project_list, label_visibility="collapsed")
+                
+                if selected_project != "-- Chọn Dự Án --":
+                    project_settings = projects_df[projects_df['project_name'] == selected_project].iloc[0]
+                    
+                    st.markdown("<div style='color: white; margin: 16px 0 8px 0;'>🎯 <strong>KPI Targets</strong></div>", unsafe_allow_html=True)
+                    
+                    kpi = {
+                        3: st.number_input("Top 3 (%)", value=int(project_settings.get('kpi_top3', 30)), min_value=0, max_value=100, step=5),
+                        5: st.number_input("Top 5 (%)", value=int(project_settings.get('kpi_top5', 50)), min_value=0, max_value=100, step=5),
+                        10: st.number_input("Top 10 (%)", value=int(project_settings.get('kpi_top10', 70)), min_value=0, max_value=100, step=5),
+                        30: st.number_input("Top 30 (%)", value=int(project_settings.get('kpi_top30', 90)), min_value=0, max_value=100, step=5)
+                    }
+                    
+                    st.markdown("<div style='color: white; margin: 16px 0 8px 0;'>📤 <strong>Upload Ranking</strong></div>", unsafe_allow_html=True)
+                    uploaded_file = st.file_uploader("Upload file", type=['xlsx', 'xls'], label_visibility="collapsed")
+            else:
+                st.warning("Không tìm thấy tab 'Settings' hoặc cột 'project_name'")
+                selected_project = "-- Chọn Dự Án --"
+                uploaded_file = None
+        else:
+            st.info("Nhập URL Google Sheet")
+            selected_project = "-- Chọn Dự Án --"
+            uploaded_file = None
+    else:
+        st.markdown("""
+        <div class="connection-status disconnected">
+            ✗ Chưa kết nối Google Sheets
+        </div>
+        """, unsafe_allow_html=True)
+        st.info("Cần cấu hình secrets.toml")
+        selected_project = "-- Chọn Dự Án --"
+        uploaded_file = None
+
+# Main Content
+if gc and spreadsheet_url and selected_project != "-- Chọn Dự Án --":
+    master_df = load_master_from_sheet(gc, spreadsheet_url, selected_project)
+    
+    if uploaded_file:
+        df, missing_keys, all_dates = process_ranking_data(uploaded_file, master_df)
+        
+        if not df.empty and len(all_dates) > 0:
+            curr_date = all_dates[0]
+            df_history = calculate_historical_kpi(df, all_dates)
+            df_curr = df[df['Date'] == curr_date].copy()
             
-            with col2:
-                st.markdown("**Ranking File Format:**")
-                sample_ranking = pd.DataFrame({
-                    'Keyword': ['seo là gì', 'học seo', 'công cụ seo'],
-                    'Rank': [5, 12, 8]
-                })
-                st.dataframe(sample_ranking)
+            # Calculate trends - dùng ngày liền kề (hôm qua) cho Workstation
+            prev_date = all_dates[1] if len(all_dates) > 1 else None
+            
+            if prev_date is not None:
+                prev = df[df['Date'] == prev_date][['Keyword_Join', 'Rank']].copy()
+                prev = prev.rename(columns={'Rank': 'Rank_Prev'})
+                df_curr = df_curr.merge(prev, on='Keyword_Join', how='left')
+            else:
+                df_curr['Rank_Prev'] = None
+            
+            def calc_change(row):
+                curr = row['Rank']
+                prev = row['Rank_Prev']
+                if pd.isna(curr) or pd.isna(prev):
+                    return 0
+                return int(prev) - int(curr)
+            
+            df_curr['Change'] = df_curr.apply(calc_change, axis=1)
+            
+            df_curr['Trend_Info'] = df_curr.apply(
+                lambda row: classify_trend_extended(row['Rank'], row['Rank_Prev']), axis=1
+            )
+            df_curr['Trend_Label'] = df_curr['Trend_Info'].apply(lambda x: x['label'])
+            df_curr['Trend_Type'] = df_curr['Trend_Info'].apply(lambda x: x['type'])
+            df_curr['Trend_Severity'] = df_curr['Trend_Info'].apply(lambda x: x['severity'])
 
+            # === HEADER ===
+            total_kw = len(df_curr)
+            top10_count = len(df_curr[df_curr['Rank'].notna() & (df_curr['Rank'] <= 10)])
+            
+            st.markdown(f"""
+            <div class="dashboard-header">
+                <h1>📊 Dashboard: {selected_project}</h1>
+                <div class="subtitle">
+                    <span class="stat-badge">📅 {pd.to_datetime(curr_date).strftime('%d/%m/%Y')}</span>
+                    <span class="stat-badge"># {total_kw} keywords</span>
+                    <span class="stat-badge">📈 {len(all_dates)} ngày dữ liệu</span>
+                    <span class="stat-badge">🎯 {top10_count} trong Top 10</span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # === ALERTS ===
+            dropped_kw = df_curr[df_curr['Trend_Type'] == 'dropped']
+            new_kw = df_curr[df_curr['Trend_Type'] == 'new']
+            
+            if len(dropped_kw) > 0 or len(new_kw) > 0:
+                col_a1, col_a2 = st.columns(2)
+                
+                with col_a1:
+                    if len(dropped_kw) > 0:
+                        dropped_list = ', '.join(dropped_kw['Keyword'].head(3).tolist())
+                        more = f" và {len(dropped_kw) - 3} keywords khác" if len(dropped_kw) > 3 else ""
+                        st.markdown(f"""
+                        <div class="alert-box danger">
+                            <div class="icon-wrapper">⚠</div>
+                            <div class="content">
+                                <div class="title">{len(dropped_kw)} từ khóa rớt khỏi Top 100</div>
+                                <div class="description">{dropped_list}{more}</div>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                
+                with col_a2:
+                    if len(new_kw) > 0:
+                        new_list = ', '.join(new_kw['Keyword'].head(3).tolist())
+                        more = f" và {len(new_kw) - 3} keywords khác" if len(new_kw) > 3 else ""
+                        st.markdown(f"""
+                        <div class="alert-box success">
+                            <div class="icon-wrapper">✦</div>
+                            <div class="content">
+                                <div class="title">{len(new_kw)} từ khóa mới vào Top 100</div>
+                                <div class="description">{new_list}{more}</div>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+            
+            # === KPI SECTION ===
+            st.markdown("""
+            <div class="section-header">
+                <div class="icon">📊</div>
+                <h2>Phân bổ & KPI</h2>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            compare_options = get_available_compare_dates(all_dates, curr_date)
+            
+            col_cmp, col_hist = st.columns([2, 1])
+            with col_cmp:
+                if compare_options:
+                    selected_compare_label = st.selectbox(
+                        "📅 So sánh với:",
+                        options=list(compare_options.keys()),
+                        index=0
+                    )
+                    compare_date = compare_options[selected_compare_label]
+                    compare_date_str = pd.to_datetime(compare_date).strftime('%d/%m/%Y')
+                else:
+                    selected_compare_label = None
+                    compare_date = None
+                    compare_date_str = None
+                    st.info("Chỉ có 1 ngày dữ liệu")
+                    
+            with col_hist:
+                show_history = st.checkbox("📈 Hiển thị lịch sử", value=False)
+            
+            comparison = calculate_comparison(df_history, curr_date, compare_date) if compare_date else {}
+            
+            # KPI Cards
+            limits = [3, 5, 10, 15, 30, 50, 100]
+            cols = st.columns(4)
+            
+            for i, lim in enumerate(limits[:4]):
+                with cols[i]:
+                    cnt = len(df_curr[df_curr['Rank'].notna() & (df_curr['Rank'] <= lim)])
+                    pct = (cnt / total_kw) * 100 if total_kw > 0 else 0
+                    
+                    comp_data = comparison.get(f'top{lim}', {})
+                    comp_count = comp_data.get('compare', cnt)
+                    delta = comp_data.get('delta', 0)
+                    delta_pct = comp_data.get('delta_pct', 0)
+                    
+                    # FIX #1: Logic đúng - delta dương = tăng, delta âm = giảm
+                    if delta > 0:
+                        trend_html = f'<div class="trend up">↑ +{delta}</div>'
+                        trend_class = "success"
+                    elif delta < 0:
+                        trend_html = f'<div class="trend down">↓ {delta}</div>'
+                        trend_class = "danger"
+                    else:
+                        trend_html = f'<div class="trend stable">— 0</div>'
+                        trend_class = "info"
+                    
+                    compare_text = f"vs {compare_date_str}: {delta:+d} ({delta_pct:+.1f}%)" if compare_date_str else ""
+                    
+                    # FIX #2: Hiển thị số KW cần thêm
+                    target_html = ""
+                    if lim in kpi:
+                        target_kw = int(total_kw * kpi[lim] / 100)  # Số KW cần đạt
+                        gap_kw = cnt - target_kw  # Số KW chênh lệch
+                        gap_pct = pct - kpi[lim]
+                        
+                        if gap_pct >= 0:
+                            target_html = f'<div class="target-status met">✓ Đạt +{gap_pct:.1f}% (+{gap_kw} KW)</div>'
+                        else:
+                            target_html = f'<div class="target-status miss">✗ Thiếu {abs(gap_pct):.1f}% ({gap_kw} KW)</div>'
+                    
+                    st.markdown(f"""
+                    <div class="kpi-card {trend_class}">
+                        <div class="label">Top {lim}</div>
+                        <div class="value">{cnt}</div>
+                        <div class="percentage">{pct:.1f}%</div>
+                        {trend_html}
+                        <div class="compare">{compare_text}</div>
+                        {target_html}
+                    </div>
+                    """, unsafe_allow_html=True)
+            
+            # Second row
+            cols2 = st.columns(4)
+            
+            for i, lim in enumerate(limits[4:7]):
+                with cols2[i]:
+                    cnt = len(df_curr[df_curr['Rank'].notna() & (df_curr['Rank'] <= lim)])
+                    pct = (cnt / total_kw) * 100 if total_kw > 0 else 0
+                    
+                    comp_data = comparison.get(f'top{lim}', {})
+                    delta = comp_data.get('delta', 0)
+                    
+                    if delta > 0:
+                        trend_html = f'<div class="trend up">↑ +{delta}</div>'
+                        trend_class = "success"
+                    elif delta < 0:
+                        trend_html = f'<div class="trend down">↓ {delta}</div>'
+                        trend_class = "danger"
+                    else:
+                        trend_html = f'<div class="trend stable">— 0</div>'
+                        trend_class = "info"
+                    
+                    # FIX #2: Hiển thị số KW cần thêm
+                    target_html = ""
+                    if lim in kpi:
+                        target_kw = int(total_kw * kpi[lim] / 100)
+                        gap_kw = cnt - target_kw
+                        gap_pct = pct - kpi[lim]
+                        
+                        if gap_pct >= 0:
+                            target_html = f'<div class="target-status met">✓ Đạt +{gap_pct:.1f}% (+{gap_kw} KW)</div>'
+                        else:
+                            target_html = f'<div class="target-status miss">✗ Thiếu {abs(gap_pct):.1f}% ({gap_kw} KW)</div>'
+                    
+                    st.markdown(f"""
+                    <div class="kpi-card {trend_class}">
+                        <div class="label">Top {lim}</div>
+                        <div class="value">{cnt}</div>
+                        <div class="percentage">{pct:.1f}%</div>
+                        {trend_html}
+                        {target_html}
+                    </div>
+                    """, unsafe_allow_html=True)
+            
+            # OUT > 100 Card
+            with cols2[3]:
+                cnt_out = len(df_curr[df_curr['Rank'].isna()])
+                pct_out = (cnt_out / total_kw * 100) if total_kw > 0 else 0
+                net = len(new_kw) - len(dropped_kw)
+                
+                net_color = "var(--success)" if net >= 0 else "var(--danger)"
+                net_symbol = "+" if net >= 0 else ""
+                
+                st.markdown(f"""
+                <div class="kpi-card danger">
+                    <div class="label">Out of Top 100</div>
+                    <div class="value">{cnt_out}</div>
+                    <div class="percentage">{pct_out:.1f}%</div>
+                    <div style="margin-top: 12px; font-size: 13px; color: var(--gray-500);">
+                        <span style="color: var(--danger);">↓ Rớt: {len(dropped_kw)}</span> &nbsp;|&nbsp; 
+                        <span style="color: var(--success);">↑ Mới: {len(new_kw)}</span>
+                    </div>
+                    <div style="margin-top: 8px; font-weight: 600; font-size: 15px; color: {net_color};">
+                        Net: {net_symbol}{net}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            # History Table
+            if show_history:
+                st.markdown("""
+                <div class="section-header" style="margin-top: 24px;">
+                    <div class="icon">📈</div>
+                    <h2>Lịch sử xếp hạng</h2>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                display_history = df_history.copy()
+                display_history['Date'] = pd.to_datetime(display_history['Date']).dt.strftime('%d/%m/%Y')
+                
+                display_cols = ['Date', 'Total_KW']
+                for top_n in [3, 5, 10, 30, 100]:
+                    display_cols.append(f'Top{top_n}_count')
+                display_cols.append('Out100_count')
+                
+                rename_map = {'Total_KW': 'Tổng KW', 'Out100_count': 'Out>100'}
+                for top_n in [3, 5, 10, 30, 100]:
+                    rename_map[f'Top{top_n}_count'] = f'Top {top_n}'
+                
+                st.dataframe(
+                    display_history[display_cols].rename(columns=rename_map),
+                    use_container_width=True,
+                    hide_index=True
+                )
 
-if __name__ == "__main__":
-    main()
+            # === TOPIC HEALTH ===
+            st.markdown("""
+            <div class="section-header">
+                <div class="icon">🎯</div>
+                <h2>Sức khỏe Topic</h2>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            col_th1, col_th2 = st.columns([3, 1])
+            with col_th1:
+                top_threshold = st.radio(
+                    "Phân tích theo ngưỡng:",
+                    options=[3, 5, 10, 30, 100],
+                    format_func=lambda x: f"Top {x}",
+                    horizontal=True,
+                    index=2
+                )
+            
+            df_topic_health = calculate_topic_health(df_curr, top_threshold)
+            
+            st.dataframe(
+                df_topic_health[['Topic', 'Total_KW', 'In_Top', 'In_Top_Pct', 'Up', 'Down', 'Net_Flow']].rename(columns={
+                    'Topic': 'Chủ đề',
+                    'Total_KW': 'Tổng KW',
+                    'In_Top': f'Trong Top {top_threshold}',
+                    'In_Top_Pct': f'% Top {top_threshold}',
+                    'Up': '↑ Tăng',
+                    'Down': '↓ Giảm',
+                    'Net_Flow': 'Net Flow'
+                }),
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    'Net Flow': st.column_config.ProgressColumn(
+                        'Net Flow',
+                        min_value=-10,
+                        max_value=10,
+                        format='%d'
+                    )
+                }
+            )
+            
+            total_in_top = df_topic_health['In_Top'].sum()
+            total_kw_topic = df_topic_health['Total_KW'].sum()
+            st.markdown(f"""
+            <div class="stats-bar">
+                <div class="stat-item">
+                    🎯
+                    <span>Tổng quan: <span class="value">{int(total_in_top)}/{int(total_kw_topic)}</span> keywords trong Top {top_threshold}</span>
+                </div>
+                <div class="stat-item">
+                    📊
+                    <span>Tỷ lệ: <span class="value">{total_in_top/total_kw_topic*100:.1f}%</span></span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # === WORKSTATION ===
+            st.markdown("""
+            <div class="section-header">
+                <div class="icon">⚡</div>
+                <h2>Workstation</h2>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # FIX #4: Dropdown chọn ngày so sánh cho Workstation
+            ws_compare_options = get_available_compare_dates(all_dates, curr_date)
+            
+            if ws_compare_options:
+                ws_col1, ws_col2 = st.columns([1, 3])
+                with ws_col1:
+                    ws_selected_compare = st.selectbox(
+                        "📅 So sánh với:",
+                        options=list(ws_compare_options.keys()),
+                        index=0,
+                        key="workstation_compare"
+                    )
+                    ws_compare_date = ws_compare_options[ws_selected_compare]
+                    ws_compare_date_str = pd.to_datetime(ws_compare_date).strftime('%d/%m/%Y')
+                
+                # Tính lại Change và Trend theo ngày đã chọn
+                ws_prev = df[df['Date'] == ws_compare_date][['Keyword_Join', 'Rank']].copy()
+                ws_prev = ws_prev.rename(columns={'Rank': 'Rank_Prev_WS'})
+                df_curr = df_curr.merge(ws_prev, on='Keyword_Join', how='left')
+                
+                def calc_change_ws(row):
+                    curr = row['Rank']
+                    prev = row['Rank_Prev_WS']
+                    if pd.isna(curr) or pd.isna(prev):
+                        return 0
+                    return int(prev) - int(curr)
+                
+                df_curr['Change_WS'] = df_curr.apply(calc_change_ws, axis=1)
+                
+                df_curr['Trend_Info_WS'] = df_curr.apply(
+                    lambda row: classify_trend_extended(row['Rank'], row['Rank_Prev_WS']), axis=1
+                )
+                df_curr['Trend_Label_WS'] = df_curr['Trend_Info_WS'].apply(lambda x: x['label'])
+                df_curr['Trend_Type_WS'] = df_curr['Trend_Info_WS'].apply(lambda x: x['type'])
+                df_curr['Trend_Severity_WS'] = df_curr['Trend_Info_WS'].apply(lambda x: x['severity'])
+                
+                curr_date_str = pd.to_datetime(curr_date).strftime('%d/%m/%Y')
+                with ws_col2:
+                    st.markdown(f"""
+                    <div class="workstation-compare-badge" style="margin-top: 28px;">
+                        📊 Đang xem: <strong>{curr_date_str}</strong> so với <strong>{ws_compare_date_str}</strong>
+                    </div>
+                    """, unsafe_allow_html=True)
+            else:
+                # Nếu chỉ có 1 ngày, dùng data mặc định
+                df_curr['Change_WS'] = df_curr['Change']
+                df_curr['Trend_Label_WS'] = df_curr['Trend_Label']
+                df_curr['Trend_Type_WS'] = df_curr['Trend_Type']
+                df_curr['Trend_Severity_WS'] = df_curr['Trend_Severity']
+                st.info("Chỉ có 1 ngày dữ liệu")
+            
+            def analyze_issue(row):
+                t = clean_url_for_compare(row['Target URL'])
+                c = clean_url_for_compare(row['Actual_URL']) if pd.notna(row.get('Actual_URL')) else ""
+                if t and c and (t not in c):
+                    return "Cannibal"
+                if not t:
+                    return "Missing Target"
+                return "OK"
+
+            df_curr['Issue'] = df_curr.apply(analyze_issue, axis=1)
+            
+            col_f1, col_f2, col_f3, col_f4, col_f5 = st.columns([2, 1, 1.5, 1.5, 2])
+            
+            with col_f1:
+                sel_top = st.multiselect("Topic", sorted(df_curr['Topic'].unique()))
+            with col_f2:
+                sel_rnk = st.selectbox("Rank", ["All", "Top 3", "Top 5", "Top 10", "Top 30", "Top 100", "Out > 100"])
+            with col_f3:
+                trend_options = ["All", "Tăng mạnh", "Tăng", "Đi ngang", "Giảm", "Giảm mạnh", "Rớt Top 100", "Mới vào Top 100"]
+                sel_trend = st.selectbox("Xu hướng", trend_options)
+            with col_f4:
+                sel_issue = st.selectbox("Vấn đề", ["All", "Cannibal", "Missing Target", "OK"])
+            with col_f5:
+                search_txt = st.text_input("Tìm kiếm", placeholder="Keyword hoặc URL...")
+
+            v = df_curr.copy()
+            
+            if sel_top: 
+                v = v[v['Topic'].isin(sel_top)]
+            
+            if sel_rnk != "All":
+                if sel_rnk == "Out > 100": 
+                    v = v[v['Rank'].isna()]
+                else: 
+                    top_val = int(sel_rnk.replace("Top ", ""))
+                    v = v[v['Rank'].notna() & (v['Rank'] <= top_val)]
+            
+            if sel_trend != "All":
+                v = v[v['Trend_Label_WS'] == sel_trend]
+            
+            if sel_issue != "All": 
+                v = v[v['Issue'] == sel_issue]
+            
+            if search_txt:
+                s = search_txt.lower()
+                v = v[
+                    v['Keyword'].str.lower().str.contains(s, na=False) | 
+                    v['Actual_URL'].astype(str).str.lower().str.contains(s, na=False)
+                ]
+
+            v = v.sort_values(by=['Trend_Severity_WS', 'Rank'], ascending=[False, True])
+            
+            v['Rank_Display'] = v['Rank'].apply(lambda x: int(x) if pd.notna(x) else ">100")
+            v['Change_Display'] = v['Change_WS'].apply(lambda x: f"{int(x):+d}" if x != 0 else "-")
+
+            st.markdown(f"""
+            <div class="data-table-header">
+                <div class="title">🔍 Kết quả lọc <span class="count">{len(v)}</span></div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            st.dataframe(
+                v[['Keyword', 'Topic', 'Rank_Display', 'Change_Display', 'Trend_Label_WS', 'Issue', 'Actual_URL', 'Target URL']].rename(columns={
+                    'Rank_Display': 'Rank',
+                    'Change_Display': 'Δ',
+                    'Trend_Label_WS': 'Xu hướng'
+                }), 
+                use_container_width=True, 
+                height=500,
+                column_config={
+                    "Actual_URL": st.column_config.LinkColumn("Actual URL"), 
+                    "Target URL": st.column_config.LinkColumn("Target URL"),
+                }
+            )
+            
+            st.markdown(f"""
+            <div class="stats-bar">
+                <div class="stat-item">🚀 Tăng mạnh: <span class="value">{len(v[v['Trend_Type_WS']=='surge'])}</span></div>
+                <div class="stat-item">↑ Tăng: <span class="value">{len(v[v['Trend_Type_WS']=='up'])}</span></div>
+                <div class="stat-item">↓ Giảm: <span class="value">{len(v[v['Trend_Type_WS']=='down'])}</span></div>
+                <div class="stat-item">🔥 Giảm mạnh: <span class="value">{len(v[v['Trend_Type_WS']=='crash'])}</span></div>
+                <div class="stat-item">⚠ Rớt: <span class="value">{len(v[v['Trend_Type_WS']=='dropped'])}</span></div>
+                <div class="stat-item">✦ Mới: <span class="value">{len(v[v['Trend_Type_WS']=='new'])}</span></div>
+            </div>
+            """, unsafe_allow_html=True)
+    else:
+        st.markdown("""
+        <div style="text-align: center; padding: 60px 20px; background: white; border-radius: 16px; margin-top: 20px; border-top: 4px solid #2563eb;">
+            <div style="font-size: 48px; margin-bottom: 16px;">📤</div>
+            <h3 style="color: #1e40af; margin-bottom: 8px;">Chưa có dữ liệu ranking</h3>
+            <p style="color: #6b7280;">Vui lòng upload file ranking ở sidebar để bắt đầu phân tích</p>
+        </div>
+        """, unsafe_allow_html=True)
+else:
+    # Welcome / Setup screen
+    st.markdown("""
+    <div style="text-align: center; padding: 40px 20px;">
+        <div style="font-size: 64px; margin-bottom: 24px;">📊</div>
+        <h1 style="font-size: 32px; font-weight: 700; color: #1e40af; margin-bottom: 12px;">
+            SEO Command Center
+        </h1>
+        <p style="font-size: 16px; color: #6b7280; max-width: 500px; margin: 0 auto 32px auto;">
+            Công cụ theo dõi và phân tích thứ hạng từ khóa SEO chuyên nghiệp
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("""
+        <div class="setup-card">
+            <h3>📋 Bước 1: Tạo Google Sheet</h3>
+            <ol>
+                <li>Tạo Google Sheet mới</li>
+                <li>Tạo tab <code>Settings</code> với các cột:
+                    <br>• project_name
+                    <br>• kpi_top3, kpi_top5, kpi_top10, kpi_top30
+                </li>
+                <li>Tạo tab <code>Master_[TenProject]</code> cho mỗi project với các cột:
+                    <br>• Keyword
+                    <br>• Topic  
+                    <br>• Target URL
+                </li>
+                <li>Share sheet với Service Account email</li>
+            </ol>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown("""
+        <div class="setup-card">
+            <h3>🔑 Bước 2: Cấu hình Secrets</h3>
+            <ol>
+                <li>Tạo Google Cloud Project</li>
+                <li>Enable Google Sheets API</li>
+                <li>Tạo Service Account & download JSON key</li>
+                <li>Trong Streamlit Cloud, thêm vào Secrets:
+                    <br><code>[gcp_service_account]</code>
+                    <br><code>type = "service_account"</code>
+                    <br><code>project_id = "..."</code>
+                    <br><code>private_key = "..."</code>
+                    <br><code>client_email = "..."</code>
+                    <br>...
+                </li>
+            </ol>
+        </div>
+        """, unsafe_allow_html=True)
