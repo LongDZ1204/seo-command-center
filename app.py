@@ -814,25 +814,35 @@ with st.sidebar:
                         )
                     
                     # === DATA INPUT SECTION ===
+                    st.markdown("---")
                     st.markdown("<div style='color: white; margin: 16px 0 8px 0;'>📤 <strong>Nhập dữ liệu Ranking</strong></div>", unsafe_allow_html=True)
                     
                     input_method = st.radio(
-                        "Phương thức nhập",
-                        options=["Upload File", "Paste Data"],
+                        "Chọn phương thức:",
+                        options=["📁 Upload File", "📋 Paste Data"],
                         horizontal=True,
-                        label_visibility="collapsed"
+                        key="input_method_radio"
                     )
                     
-                    if input_method == "Upload File":
-                        uploaded_file = st.file_uploader("Upload file", type=['xlsx', 'xls'], label_visibility="collapsed")
-                    else:
-                        st.markdown("<div style='color: rgba(255,255,255,0.6); font-size: 11px; margin-bottom: 4px;'>Copy từ Excel (có Header) → Paste vào đây</div>", unsafe_allow_html=True)
-                        pasted_data = st.text_area(
-                            "Paste data",
-                            height=150,
-                            placeholder="Keyword\tURL\t01/01/2025\t02/01/2025\n...",
-                            label_visibility="collapsed"
+                    if input_method == "📁 Upload File":
+                        uploaded_file = st.file_uploader(
+                            "Upload file Excel", 
+                            type=['xlsx', 'xls'], 
+                            label_visibility="collapsed",
+                            key="file_uploader"
                         )
+                    else:
+                        st.markdown("<div style='color: #fbbf24; font-size: 11px; margin-bottom: 4px;'>💡 Copy từ Excel (có Header) → Ctrl+V vào đây</div>", unsafe_allow_html=True)
+                        pasted_data = st.text_area(
+                            "Paste dữ liệu",
+                            height=150,
+                            placeholder="Keyword\tURL\t01/01/2025\t02/01/2025\nkeyword1\turl1\t5\t3\n...",
+                            label_visibility="collapsed",
+                            key="paste_area"
+                        )
+                        if pasted_data:
+                            lines = pasted_data.strip().split('\n')
+                            st.success(f"✓ Đã nhận {len(lines)} dòng dữ liệu")
             else:
                 st.warning("Không tìm thấy tab 'Settings' hoặc cột 'project_name'")
         else:
@@ -854,10 +864,18 @@ if gc and spreadsheet_url and selected_project != "-- Chọn Dự Án --":
     missing_keys = []
     all_dates = []
     
-    if uploaded_file:
-        df, missing_keys, all_dates = process_ranking_data(uploaded_file, master_df)
-    elif pasted_data and pasted_data.strip():
-        df, missing_keys, all_dates = process_pasted_data(pasted_data, master_df)
+    # Check input based on method selected
+    if 'input_method_radio' in st.session_state:
+        if st.session_state.input_method_radio == "📁 Upload File" and uploaded_file:
+            df, missing_keys, all_dates = process_ranking_data(uploaded_file, master_df)
+        elif st.session_state.input_method_radio == "📋 Paste Data" and pasted_data and pasted_data.strip():
+            df, missing_keys, all_dates = process_pasted_data(pasted_data, master_df)
+    else:
+        # Fallback for first load
+        if uploaded_file:
+            df, missing_keys, all_dates = process_ranking_data(uploaded_file, master_df)
+        elif pasted_data and pasted_data.strip():
+            df, missing_keys, all_dates = process_pasted_data(pasted_data, master_df)
     
     if not df.empty and len(all_dates) > 0:
         curr_date = all_dates[0]
