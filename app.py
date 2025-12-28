@@ -1,7 +1,8 @@
 import streamlit as st
 import pandas as pd
-import os
 import unicodedata
+from google.oauth2.service_account import Credentials
+import gspread
 
 # --- CẤU HÌNH GIAO DIỆN ---
 st.set_page_config(
@@ -11,69 +12,14 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# === LUCIDE ICONS (SVG) ===
-ICONS = {
-    # Navigation & UI
-    'dashboard': '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>',
-    'settings': '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>',
-    'target': '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>',
-    'upload': '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>',
-    'calendar': '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg>',
-    'folder': '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>',
-    
-    # Trends
-    'trend_up': '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>',
-    'trend_down': '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 17 13.5 8.5 8.5 13.5 2 7"/><polyline points="16 17 22 17 22 11"/></svg>',
-    'arrow_up': '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg>',
-    'arrow_down': '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>',
-    'minus': '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg>',
-    'rocket': '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg>',
-    'zap': '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
-    
-    # Status
-    'alert_triangle': '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>',
-    'alert_circle': '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>',
-    'check_circle': '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>',
-    'x_circle': '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>',
-    'sparkles': '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/><path d="M5 3v4"/><path d="M19 17v4"/><path d="M3 5h4"/><path d="M17 19h4"/></svg>',
-    'flame': '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>',
-    
-    # Analytics
-    'bar_chart': '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="20" y2="10"/><line x1="18" x2="18" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="16"/></svg>',
-    'pie_chart': '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>',
-    'activity': '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>',
-    'layers': '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></svg>',
-    
-    # Actions
-    'search': '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>',
-    'filter': '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>',
-    'external_link': '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" x2="21" y1="14" y2="3"/></svg>',
-    'copy': '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>',
-    'info': '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>',
-    'history': '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>',
-    
-    # Objects
-    'link': '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>',
-    'unlink': '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18.84 12.25 1.72-1.71h-.02a5.004 5.004 0 0 0-.12-7.07 5.006 5.006 0 0 0-6.95 0l-1.72 1.71"/><path d="m5.17 11.75-1.71 1.71a5.004 5.004 0 0 0 .12 7.07 5.006 5.006 0 0 0 6.95 0l1.71-1.71"/><line x1="8" x2="8" y1="2" y2="5"/><line x1="2" x2="5" y1="8" y2="8"/><line x1="16" x2="16" y1="19" y2="22"/><line x1="19" x2="22" y1="16" y2="16"/></svg>',
-    'globe': '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>',
-    'hash': '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="9" y2="9"/><line x1="4" x2="20" y1="15" y2="15"/><line x1="10" x2="8" y1="3" y2="21"/><line x1="16" x2="14" y1="3" y2="21"/></svg>',
-}
-
-def icon(name, color=None):
-    """Render icon với màu tùy chọn"""
-    svg = ICONS.get(name, '')
-    if color:
-        svg = svg.replace('currentColor', color)
-    return svg
-
-# === MODERN CSS STYLES ===
+# === MODERN CSS STYLES - MÀU XANH DƯƠNG CHỦ ĐẠO ===
 st.markdown("""
 <style>
-    /* === VARIABLES === */
     :root {
-        --primary: #6366f1;
-        --primary-light: #818cf8;
-        --primary-dark: #4f46e5;
+        --primary: #2563eb;
+        --primary-light: #3b82f6;
+        --primary-dark: #1d4ed8;
+        --primary-bg: #eff6ff;
         --success: #10b981;
         --success-light: #34d399;
         --success-bg: #ecfdf5;
@@ -83,10 +29,9 @@ st.markdown("""
         --danger: #ef4444;
         --danger-light: #f87171;
         --danger-bg: #fef2f2;
-        --info: #3b82f6;
-        --info-light: #60a5fa;
-        --info-bg: #eff6ff;
-        
+        --info: #0ea5e9;
+        --info-light: #38bdf8;
+        --info-bg: #f0f9ff;
         --gray-50: #f9fafb;
         --gray-100: #f3f4f6;
         --gray-200: #e5e7eb;
@@ -97,512 +42,170 @@ st.markdown("""
         --gray-700: #374151;
         --gray-800: #1f2937;
         --gray-900: #111827;
-        
         --radius-sm: 6px;
         --radius-md: 10px;
         --radius-lg: 16px;
         --radius-xl: 20px;
-        
         --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
         --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
         --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-        --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
     }
     
-    /* === GLOBAL STYLES === */
-    .stApp {
-        background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%);
-    }
+    .stApp { background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); }
+    .main .block-container { padding-top: 2rem; padding-bottom: 2rem; max-width: 1400px; }
     
-    .main .block-container {
-        padding-top: 2rem;
-        padding-bottom: 2rem;
-        max-width: 1400px;
-    }
+    [data-testid="stSidebar"] { background: linear-gradient(180deg, #1e3a5f 0%, #1e40af 100%); }
+    [data-testid="stSidebar"] .stMarkdown { color: var(--gray-300); }
+    [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 { color: white !important; }
+    [data-testid="stSidebar"] label { color: var(--gray-300) !important; }
     
-    /* === SIDEBAR === */
-    [data-testid="stSidebar"] {
-        background: linear-gradient(180deg, var(--gray-900) 0%, var(--gray-800) 100%);
-    }
-    
-    [data-testid="stSidebar"] .stMarkdown {
-        color: var(--gray-300);
-    }
-    
-    [data-testid="stSidebar"] h1, 
-    [data-testid="stSidebar"] h2, 
-    [data-testid="stSidebar"] h3 {
-        color: white !important;
-    }
-    
-    [data-testid="stSidebar"] label {
-        color: var(--gray-300) !important;
-    }
-    
-    /* === HEADER === */
     .dashboard-header {
         background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-        padding: 24px 32px;
-        border-radius: var(--radius-xl);
-        margin-bottom: 24px;
-        box-shadow: var(--shadow-lg);
-        color: white;
+        padding: 24px 32px; border-radius: var(--radius-xl); margin-bottom: 24px;
+        box-shadow: var(--shadow-lg); color: white;
     }
+    .dashboard-header h1 { margin: 0; font-size: 28px; font-weight: 700; display: flex; align-items: center; gap: 12px; }
+    .dashboard-header .subtitle { margin-top: 8px; opacity: 0.9; font-size: 14px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+    .dashboard-header .stat-badge { background: rgba(255,255,255,0.2); padding: 4px 12px; border-radius: 20px; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; }
     
-    .dashboard-header h1 {
-        margin: 0;
-        font-size: 28px;
-        font-weight: 700;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-    }
-    
-    .dashboard-header .subtitle {
-        margin-top: 8px;
-        opacity: 0.9;
-        font-size: 14px;
-        display: flex;
-        align-items: center;
-        gap: 16px;
-    }
-    
-    .dashboard-header .stat-badge {
-        background: rgba(255,255,255,0.2);
-        padding: 4px 12px;
-        border-radius: 20px;
-        font-size: 13px;
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-    }
-    
-    /* === SECTION HEADERS === */
-    .section-header {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        margin: 32px 0 16px 0;
-        padding-bottom: 12px;
-        border-bottom: 2px solid var(--gray-200);
-    }
-    
-    .section-header h2 {
-        margin: 0;
-        font-size: 18px;
-        font-weight: 600;
-        color: var(--gray-800);
-    }
-    
-    .section-header .icon {
-        width: 32px;
-        height: 32px;
-        background: var(--primary);
-        border-radius: var(--radius-sm);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: white;
-        font-size: 16px;
-    }
-    
-    /* === KPI CARDS === */
-    .kpi-grid {
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: 16px;
-        margin-bottom: 24px;
-    }
+    .section-header { display: flex; align-items: center; gap: 10px; margin: 32px 0 16px 0; padding-bottom: 12px; border-bottom: 2px solid var(--primary-light); }
+    .section-header h2 { margin: 0; font-size: 18px; font-weight: 600; color: var(--gray-800); }
+    .section-header .icon { width: 32px; height: 32px; background: var(--primary); border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; color: white; font-size: 16px; }
     
     .kpi-card {
-        background: white;
-        border-radius: var(--radius-lg);
-        padding: 20px;
-        box-shadow: var(--shadow-md);
-        border: 1px solid var(--gray-100);
-        transition: all 0.2s ease;
-        position: relative;
-        overflow: hidden;
-        min-height: 200px;
-        display: flex;
-        flex-direction: column;
+        background: white; border-radius: var(--radius-lg); padding: 20px;
+        box-shadow: var(--shadow-md); border: 1px solid var(--gray-100);
+        transition: all 0.2s ease; position: relative; overflow: hidden;
+        min-height: 220px; display: flex; flex-direction: column;
     }
-    
-    .kpi-card:hover {
-        transform: translateY(-2px);
-        box-shadow: var(--shadow-lg);
-    }
-    
-    .kpi-card::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        height: 4px;
-        background: var(--primary);
-    }
-    
+    .kpi-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+    .kpi-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: var(--primary); }
     .kpi-card.success::before { background: var(--success); }
     .kpi-card.warning::before { background: var(--warning); }
     .kpi-card.danger::before { background: var(--danger); }
     .kpi-card.info::before { background: var(--info); }
+    .kpi-card .label { font-size: 12px; font-weight: 600; color: var(--gray-500); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+    .kpi-card .value { font-size: 32px; font-weight: 700; color: var(--gray-900); line-height: 1; margin-bottom: 4px; }
+    .kpi-card .percentage { font-size: 14px; color: var(--gray-500); margin-bottom: 12px; }
+    .kpi-card .trend { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 600; padding: 4px 10px; border-radius: 20px; }
+    .kpi-card .trend.up { background: var(--success-bg); color: var(--success); }
+    .kpi-card .trend.down { background: var(--danger-bg); color: var(--danger); }
+    .kpi-card .trend.stable { background: var(--gray-100); color: var(--gray-500); }
+    .kpi-card .compare { font-size: 12px; color: var(--gray-400); margin-top: 8px; }
+    .kpi-card .target-status { margin-top: 12px; padding: 8px 12px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+    .kpi-card .target-status.met { background: var(--success-bg); color: var(--success); }
+    .kpi-card .target-status.miss { background: var(--danger-bg); color: var(--danger); }
     
-    .kpi-card .label {
-        font-size: 12px;
-        font-weight: 600;
-        color: var(--gray-500);
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        margin-bottom: 8px;
-    }
-    
-    .kpi-card .value {
-        font-size: 32px;
-        font-weight: 700;
-        color: var(--gray-900);
-        line-height: 1;
-        margin-bottom: 4px;
-    }
-    
-    .kpi-card .percentage {
-        font-size: 14px;
-        color: var(--gray-500);
-        margin-bottom: 12px;
-    }
-    
-    .kpi-card .trend {
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        font-size: 13px;
-        font-weight: 600;
-        padding: 4px 10px;
-        border-radius: 20px;
-    }
-    
-    .kpi-card .trend.up {
-        background: var(--success-bg);
-        color: var(--success);
-    }
-    
-    .kpi-card .trend.down {
-        background: var(--danger-bg);
-        color: var(--danger);
-    }
-    
-    .kpi-card .trend.stable {
-        background: var(--gray-100);
-        color: var(--gray-500);
-    }
-    
-    .kpi-card .compare {
-        font-size: 12px;
-        color: var(--gray-400);
-        margin-top: 8px;
-    }
-    
-    .kpi-card .target-status {
-        margin-top: 12px;
-        padding: 8px 12px;
-        border-radius: var(--radius-sm);
-        font-size: 12px;
-        font-weight: 600;
-        display: flex;
-        align-items: center;
-        gap: 6px;
-    }
-    
-    .kpi-card .target-status.met {
-        background: var(--success-bg);
-        color: var(--success);
-    }
-    
-    .kpi-card .target-status.miss {
-        background: var(--danger-bg);
-        color: var(--danger);
-    }
-    
-    /* === ALERT BOXES === */
-    .alert-box {
-        padding: 16px 20px;
-        border-radius: var(--radius-md);
-        margin-bottom: 16px;
-        display: flex;
-        align-items: flex-start;
-        gap: 12px;
-    }
-    
-    .alert-box.danger {
-        background: var(--danger-bg);
-        border: 1px solid #fecaca;
-    }
-    
-    .alert-box.success {
-        background: var(--success-bg);
-        border: 1px solid #a7f3d0;
-    }
-    
-    .alert-box.warning {
-        background: var(--warning-bg);
-        border: 1px solid #fde68a;
-    }
-    
-    .alert-box .icon-wrapper {
-        width: 36px;
-        height: 36px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        flex-shrink: 0;
-        font-size: 18px;
-    }
-    
-    .alert-box.danger .icon-wrapper {
-        background: var(--danger);
-        color: white;
-    }
-    
-    .alert-box.success .icon-wrapper {
-        background: var(--success);
-        color: white;
-    }
-    
-    .alert-box .content {
-        flex: 1;
-    }
-    
-    .alert-box .title {
-        font-weight: 600;
-        font-size: 14px;
-        margin-bottom: 4px;
-    }
-    
+    .alert-box { padding: 16px 20px; border-radius: var(--radius-md); margin-bottom: 16px; display: flex; align-items: flex-start; gap: 12px; }
+    .alert-box.danger { background: var(--danger-bg); border: 1px solid #fecaca; }
+    .alert-box.success { background: var(--success-bg); border: 1px solid #a7f3d0; }
+    .alert-box.warning { background: var(--warning-bg); border: 1px solid #fde68a; }
+    .alert-box.info { background: var(--primary-bg); border: 1px solid #bfdbfe; }
+    .alert-box .icon-wrapper { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 18px; }
+    .alert-box.danger .icon-wrapper { background: var(--danger); color: white; }
+    .alert-box.success .icon-wrapper { background: var(--success); color: white; }
+    .alert-box.info .icon-wrapper { background: var(--primary); color: white; }
+    .alert-box .content { flex: 1; }
+    .alert-box .title { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
     .alert-box.danger .title { color: var(--danger); }
     .alert-box.success .title { color: var(--success); }
+    .alert-box.info .title { color: var(--primary); }
+    .alert-box .description { font-size: 13px; color: var(--gray-600); }
     
-    .alert-box .description {
-        font-size: 13px;
-        color: var(--gray-600);
-    }
+    .stats-bar { display: flex; gap: 24px; padding: 12px 20px; background: var(--primary-bg); border-radius: var(--radius-md); margin-top: 16px; flex-wrap: wrap; border: 1px solid #bfdbfe; }
+    .stats-bar .stat-item { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--gray-600); }
+    .stats-bar .stat-item .value { font-weight: 600; color: var(--primary-dark); }
     
-    /* === TOPIC HEALTH TABLE === */
-    .topic-table {
-        background: white;
-        border-radius: var(--radius-lg);
-        box-shadow: var(--shadow-md);
-        overflow: hidden;
-    }
+    .data-table-header { background: var(--primary-bg); padding: 16px 20px; border-bottom: 1px solid #bfdbfe; display: flex; justify-content: space-between; align-items: center; border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
+    .data-table-header .title { font-weight: 600; color: var(--primary-dark); display: flex; align-items: center; gap: 8px; }
+    .data-table-header .count { background: var(--primary); color: white; padding: 2px 10px; border-radius: 20px; font-size: 12px; }
+    .data-table-header .compare-info { font-size: 12px; color: var(--gray-500); background: white; padding: 4px 12px; border-radius: 20px; }
     
-    .topic-row {
-        display: grid;
-        grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr 2fr;
-        padding: 14px 20px;
-        border-bottom: 1px solid var(--gray-100);
-        align-items: center;
-        transition: background 0.15s ease;
-    }
+    .setup-card { background: white; padding: 32px; border-radius: var(--radius-lg); box-shadow: var(--shadow-md); margin-bottom: 24px; border-top: 4px solid var(--primary); }
+    .setup-card h3 { color: var(--primary-dark); margin-bottom: 16px; }
+    .setup-card ol { color: var(--gray-600); line-height: 2; }
+    .setup-card code { background: var(--primary-bg); padding: 2px 8px; border-radius: 4px; font-size: 13px; color: var(--primary-dark); }
     
-    .topic-row:hover {
-        background: var(--gray-50);
-    }
+    .connection-status { padding: 12px 16px; border-radius: var(--radius-md); margin-bottom: 16px; display: flex; align-items: center; gap: 10px; }
+    .connection-status.connected { background: var(--success-bg); color: var(--success); }
+    .connection-status.disconnected { background: var(--danger-bg); color: var(--danger); }
     
-    .topic-row.header {
-        background: var(--gray-50);
-        font-weight: 600;
-        font-size: 12px;
-        color: var(--gray-500);
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
-    
-    .topic-row .topic-name {
-        font-weight: 500;
-        color: var(--gray-800);
-    }
-    
-    .topic-row .net-flow {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
-    
-    .net-flow-bar {
-        height: 8px;
-        border-radius: 4px;
-        background: var(--gray-200);
-        flex: 1;
-        max-width: 100px;
-        overflow: hidden;
-    }
-    
-    .net-flow-bar .fill {
-        height: 100%;
-        border-radius: 4px;
-    }
-    
-    .net-flow-bar .fill.positive { background: var(--success); }
-    .net-flow-bar .fill.negative { background: var(--danger); }
-    
-    /* === BADGES === */
-    .badge {
+    /* Workstation compare badge */
+    .workstation-compare-badge { 
+        background: var(--primary-bg); 
+        border: 1px solid var(--primary-light); 
+        padding: 8px 16px; 
+        border-radius: var(--radius-md); 
+        margin-bottom: 16px;
         display: inline-flex;
         align-items: center;
-        gap: 4px;
-        padding: 4px 10px;
-        border-radius: 20px;
-        font-size: 12px;
-        font-weight: 500;
-    }
-    
-    .badge.success { background: var(--success-bg); color: var(--success); }
-    .badge.danger { background: var(--danger-bg); color: var(--danger); }
-    .badge.warning { background: var(--warning-bg); color: var(--warning); }
-    .badge.info { background: var(--info-bg); color: var(--info); }
-    .badge.default { background: var(--gray-100); color: var(--gray-600); }
-    
-    /* === FILTER BAR === */
-    .filter-bar {
-        background: white;
-        padding: 16px 20px;
-        border-radius: var(--radius-lg);
-        box-shadow: var(--shadow-sm);
-        margin-bottom: 16px;
-        display: flex;
-        align-items: center;
-        gap: 16px;
-        flex-wrap: wrap;
-    }
-    
-    .filter-bar .filter-label {
-        font-size: 13px;
-        font-weight: 500;
-        color: var(--gray-600);
-        display: flex;
-        align-items: center;
-        gap: 6px;
-    }
-    
-    /* === WORKSTATION TABLE === */
-    .data-table-wrapper {
-        background: white;
-        border-radius: var(--radius-lg);
-        box-shadow: var(--shadow-md);
-        overflow: hidden;
-    }
-    
-    .data-table-header {
-        background: var(--gray-50);
-        padding: 16px 20px;
-        border-bottom: 1px solid var(--gray-200);
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-    
-    .data-table-header .title {
-        font-weight: 600;
-        color: var(--gray-800);
-        display: flex;
-        align-items: center;
-        gap: 8px;
-    }
-    
-    .data-table-header .count {
-        background: var(--primary);
-        color: white;
-        padding: 2px 10px;
-        border-radius: 20px;
-        font-size: 12px;
-    }
-    
-    /* === STATS BAR === */
-    .stats-bar {
-        display: flex;
-        gap: 24px;
-        padding: 12px 20px;
-        background: var(--gray-50);
-        border-radius: var(--radius-md);
-        margin-top: 16px;
-    }
-    
-    .stats-bar .stat-item {
-        display: flex;
-        align-items: center;
         gap: 8px;
         font-size: 13px;
-        color: var(--gray-600);
-    }
-    
-    .stats-bar .stat-item .value {
-        font-weight: 600;
-        color: var(--gray-800);
-    }
-    
-    /* === COMPARE SELECTOR === */
-    .compare-selector {
-        background: white;
-        padding: 12px 16px;
-        border-radius: var(--radius-md);
-        box-shadow: var(--shadow-sm);
-        display: inline-flex;
-        align-items: center;
-        gap: 12px;
-        margin-bottom: 16px;
-    }
-    
-    .compare-selector .label {
-        font-size: 13px;
-        color: var(--gray-500);
-        display: flex;
-        align-items: center;
-        gap: 6px;
-    }
-    
-    /* === EMPTY STATE === */
-    .empty-state {
-        text-align: center;
-        padding: 60px 20px;
-        color: var(--gray-400);
-    }
-    
-    .empty-state .icon {
-        font-size: 48px;
-        margin-bottom: 16px;
-    }
-    
-    .empty-state .title {
-        font-size: 18px;
-        font-weight: 600;
-        color: var(--gray-600);
-        margin-bottom: 8px;
-    }
-    
-    .empty-state .description {
-        font-size: 14px;
-    }
-    
-    /* === CUSTOM DATAFRAME === */
-    .stDataFrame {
-        border-radius: var(--radius-md) !important;
-        overflow: hidden;
-    }
-    
-    /* === RESPONSIVE === */
-    @media (max-width: 1200px) {
-        .kpi-grid {
-            grid-template-columns: repeat(2, 1fr);
-        }
-    }
-    
-    @media (max-width: 768px) {
-        .kpi-grid {
-            grid-template-columns: 1fr;
-        }
+        color: var(--primary-dark);
     }
 </style>
 """, unsafe_allow_html=True)
+
+# --- GOOGLE SHEETS CONNECTION ---
+
+@st.cache_resource
+def get_google_connection():
+    """Kết nối Google Sheets từ Streamlit Secrets"""
+    try:
+        credentials = Credentials.from_service_account_info(
+            st.secrets["gcp_service_account"],
+            scopes=[
+                "https://www.googleapis.com/auth/spreadsheets",
+                "https://www.googleapis.com/auth/drive"
+            ]
+        )
+        client = gspread.authorize(credentials)
+        return client
+    except Exception as e:
+        return None
+
+@st.cache_data(ttl=300)
+def load_projects_from_sheet(_client, spreadsheet_url):
+    """Load danh sách projects từ Settings tab"""
+    try:
+        spreadsheet = _client.open_by_url(spreadsheet_url)
+        settings_sheet = spreadsheet.worksheet("Settings")
+        data = settings_sheet.get_all_records()
+        return pd.DataFrame(data)
+    except Exception as e:
+        st.error(f"Lỗi load Settings: {e}")
+        return pd.DataFrame()
+
+@st.cache_data(ttl=300)
+def load_master_from_sheet(_client, spreadsheet_url, project_name):
+    """Load Master data cho project cụ thể"""
+    try:
+        spreadsheet = _client.open_by_url(spreadsheet_url)
+        master_sheet = spreadsheet.worksheet(f"Master_{project_name}")
+        data = master_sheet.get_all_records()
+        df = pd.DataFrame(data)
+        
+        df.columns = [clean_text_strict(c) for c in df.columns]
+        
+        col_map = {}
+        for c in df.columns:
+            if 'keyword' in c: col_map['keyword'] = c
+            elif 'topic' in c: col_map['topic'] = c
+            elif 'target' in c and 'url' in c: col_map['target_url'] = c
+        
+        df = df.rename(columns={
+            col_map.get('keyword', 'keyword'): 'Keyword',
+            col_map.get('topic', 'topic'): 'Topic',
+            col_map.get('target_url', 'target_url'): 'Target URL',
+        })
+        
+        if 'Keyword' in df.columns:
+            df['Keyword_Join'] = df['Keyword'].apply(clean_text_strict)
+        
+        return df
+    except Exception as e:
+        st.error(f"Lỗi load Master_{project_name}: {e}")
+        return None
 
 # --- CORE UTILITIES ---
 
@@ -671,47 +274,7 @@ def classify_trend_extended(current_rank, previous_rank, threshold=100):
     else:
         return {'label': 'Giảm mạnh', 'type': 'crash', 'severity': 4}
 
-def get_trend_badge(trend_type):
-    """Trả về HTML badge cho trend"""
-    badges = {
-        'surge': f'<span class="badge success">{icon("rocket", "#10b981")} Tăng mạnh</span>',
-        'up': f'<span class="badge success">{icon("trend_up", "#10b981")} Tăng</span>',
-        'stable': f'<span class="badge default">{icon("minus", "#6b7280")} Đi ngang</span>',
-        'down': f'<span class="badge warning">{icon("trend_down", "#f59e0b")} Giảm</span>',
-        'crash': f'<span class="badge danger">{icon("flame", "#ef4444")} Giảm mạnh</span>',
-        'dropped': f'<span class="badge danger">{icon("alert_triangle", "#ef4444")} Rớt Top 100</span>',
-        'new': f'<span class="badge info">{icon("sparkles", "#3b82f6")} Mới vào</span>',
-        'out': f'<span class="badge default">{icon("x_circle", "#6b7280")} Ngoài Top 100</span>',
-    }
-    return badges.get(trend_type, '')
-
-# --- DATA LOADERS ---
-
-def load_master_data(project_path):
-    master_file = os.path.join(project_path, 'master.xlsx')
-    if os.path.exists(master_file):
-        try:
-            df = pd.read_excel(master_file)
-            df.columns = [clean_text_strict(c) for c in df.columns]
-            
-            col_map = {}
-            for c in df.columns:
-                if 'keyword' in c: col_map['keyword'] = c
-                elif 'topic' in c: col_map['topic'] = c
-                elif 'target' in c and 'url' in c: col_map['target_url'] = c
-            
-            df = df.rename(columns={
-                col_map.get('keyword', 'keyword'): 'Keyword',
-                col_map.get('topic', 'topic'): 'Topic',
-                col_map.get('target_url', 'target_url'): 'Target URL',
-            })
-            
-            if 'Keyword' in df.columns:
-                df['Keyword_Join'] = df['Keyword'].apply(clean_text_strict)
-                return df
-        except Exception as e:
-            st.error(f"Lỗi Master File: {e}")
-    return None
+# --- DATA PROCESSING ---
 
 def process_ranking_data(uploaded_file, master_df):
     try:
@@ -747,7 +310,7 @@ def process_ranking_data(uploaded_file, master_df):
         missing_keys = []
         all_dates = sorted(df_long['Date'].unique(), reverse=True)
 
-        if master_df is not None:
+        if master_df is not None and not master_df.empty:
             full_df = pd.merge(df_long, master_df[['Keyword_Join', 'Topic', 'Target URL']], 
                                on='Keyword_Join', how='left')
             
@@ -793,6 +356,7 @@ def calculate_historical_kpi(df_full, all_dates, top_n_list=[3, 5, 10, 15, 30, 5
     return pd.DataFrame(history_data).sort_values('Date', ascending=False)
 
 def get_available_compare_dates(all_dates, current_date):
+    """FIX #3: Hiển thị ngày cụ thể trong dropdown"""
     if len(all_dates) <= 1:
         return {}
     
@@ -801,19 +365,19 @@ def get_available_compare_dates(all_dates, current_date):
     
     for date in other_dates:
         days_diff = (current_date - date).days
+        date_str = pd.to_datetime(date).strftime('%d/%m/%Y')
         
         if days_diff == 1:
-            label = "Hôm qua"
-        elif days_diff <= 7:
-            label = f"{days_diff} ngày trước"
+            label = f"Hôm qua ({date_str})"
         else:
-            label = f"{days_diff} ngày trước ({pd.to_datetime(date).strftime('%d/%m')})"
+            label = f"{days_diff} ngày trước ({date_str})"
         
         compare_options[label] = date
     
     return compare_options
 
 def calculate_comparison(df_history, current_date, compare_date):
+    """FIX #1: Sửa logic so sánh - current vs compare (không phải compare vs current)"""
     if df_history.empty or compare_date is None:
         return {}
     
@@ -831,6 +395,7 @@ def calculate_comparison(df_history, current_date, compare_date):
         curr_count = safe_int(curr_row.get(f'Top{top_n}_count', 0))
         comp_count = safe_int(comp_row.get(f'Top{top_n}_count', 0))
         
+        # FIX: delta = current - compare (positive nếu hiện tại cao hơn)
         delta = curr_count - comp_count
         delta_pct = ((curr_count - comp_count) / comp_count * 100) if comp_count > 0 else 0
         
@@ -868,41 +433,77 @@ def calculate_topic_health(df_curr, top_n_threshold=10):
 
 # Sidebar
 with st.sidebar:
-    st.markdown(f"""
+    st.markdown("""
     <div style="padding: 20px 0; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 20px;">
         <div style="font-size: 24px; font-weight: 700; color: white; display: flex; align-items: center; justify-content: center; gap: 10px;">
             📊 SEO Center
         </div>
-        <div style="font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 4px;">Version 10.0</div>
+        <div style="font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 4px;">Version 10.1 - Cloud Edition</div>
     </div>
     """, unsafe_allow_html=True)
     
-    st.markdown(f"<div style='display: flex; align-items: center; gap: 8px; color: white; margin-bottom: 12px;'>📁 <strong>Project</strong></div>", unsafe_allow_html=True)
+    gc = get_google_connection()
     
-    if not os.path.exists('projects'): 
-        os.makedirs('projects')
+    if gc:
+        st.markdown("""
+        <div class="connection-status connected">
+            ✓ Đã kết nối Google Sheets
+        </div>
+        """, unsafe_allow_html=True)
         
-    projects = [f for f in os.listdir('projects') if os.path.isdir(os.path.join('projects', f))]
-    selected_project = st.selectbox("Chọn dự án", ["-- Chọn Dự Án --"] + projects, label_visibility="collapsed")
-    
-    if selected_project != "-- Chọn Dự Án --":
-        st.markdown(f"<div style='display: flex; align-items: center; gap: 8px; color: white; margin: 24px 0 12px 0;'>🎯 <strong>KPI Targets</strong></div>", unsafe_allow_html=True)
+        st.markdown("<div style='color: white; margin-bottom: 8px;'>📋 <strong>Google Sheet URL</strong></div>", unsafe_allow_html=True)
         
-        kpi = {
-            3: st.number_input("Top 3 (%)", value=30, min_value=0, max_value=100, step=5),
-            5: st.number_input("Top 5 (%)", value=50, min_value=0, max_value=100, step=5),
-            10: st.number_input("Top 10 (%)", value=70, min_value=0, max_value=100, step=5),
-            30: st.number_input("Top 30 (%)", value=90, min_value=0, max_value=100, step=5)
-        }
+        spreadsheet_url = st.text_input(
+            "Spreadsheet URL",
+            value=st.secrets.get("spreadsheet_url", ""),
+            label_visibility="collapsed",
+            placeholder="Paste Google Sheet URL..."
+        )
         
-        st.markdown(f"<div style='display: flex; align-items: center; gap: 8px; color: white; margin: 24px 0 12px 0;'>📤 <strong>Upload Data</strong></div>", unsafe_allow_html=True)
-        
-        uploaded_file = st.file_uploader("Upload Ranking File", type=['xlsx', 'xls'], label_visibility="collapsed")
+        if spreadsheet_url:
+            projects_df = load_projects_from_sheet(gc, spreadsheet_url)
+            
+            if not projects_df.empty and 'project_name' in projects_df.columns:
+                project_list = projects_df['project_name'].tolist()
+                
+                st.markdown("<div style='color: white; margin: 16px 0 8px 0;'>📁 <strong>Project</strong></div>", unsafe_allow_html=True)
+                selected_project = st.selectbox("Chọn dự án", ["-- Chọn Dự Án --"] + project_list, label_visibility="collapsed")
+                
+                if selected_project != "-- Chọn Dự Án --":
+                    project_settings = projects_df[projects_df['project_name'] == selected_project].iloc[0]
+                    
+                    st.markdown("<div style='color: white; margin: 16px 0 8px 0;'>🎯 <strong>KPI Targets</strong></div>", unsafe_allow_html=True)
+                    
+                    kpi = {
+                        3: st.number_input("Top 3 (%)", value=int(project_settings.get('kpi_top3', 30)), min_value=0, max_value=100, step=5),
+                        5: st.number_input("Top 5 (%)", value=int(project_settings.get('kpi_top5', 50)), min_value=0, max_value=100, step=5),
+                        10: st.number_input("Top 10 (%)", value=int(project_settings.get('kpi_top10', 70)), min_value=0, max_value=100, step=5),
+                        30: st.number_input("Top 30 (%)", value=int(project_settings.get('kpi_top30', 90)), min_value=0, max_value=100, step=5)
+                    }
+                    
+                    st.markdown("<div style='color: white; margin: 16px 0 8px 0;'>📤 <strong>Upload Ranking</strong></div>", unsafe_allow_html=True)
+                    uploaded_file = st.file_uploader("Upload file", type=['xlsx', 'xls'], label_visibility="collapsed")
+            else:
+                st.warning("Không tìm thấy tab 'Settings' hoặc cột 'project_name'")
+                selected_project = "-- Chọn Dự Án --"
+                uploaded_file = None
+        else:
+            st.info("Nhập URL Google Sheet")
+            selected_project = "-- Chọn Dự Án --"
+            uploaded_file = None
+    else:
+        st.markdown("""
+        <div class="connection-status disconnected">
+            ✗ Chưa kết nối Google Sheets
+        </div>
+        """, unsafe_allow_html=True)
+        st.info("Cần cấu hình secrets.toml")
+        selected_project = "-- Chọn Dự Án --"
+        uploaded_file = None
 
 # Main Content
-if selected_project != "-- Chọn Dự Án --":
-    project_path = os.path.join('projects', selected_project)
-    master_df = load_master_data(project_path)
+if gc and spreadsheet_url and selected_project != "-- Chọn Dự Án --":
+    master_df = load_master_from_sheet(gc, spreadsheet_url, selected_project)
     
     if uploaded_file:
         df, missing_keys, all_dates = process_ranking_data(uploaded_file, master_df)
@@ -912,7 +513,7 @@ if selected_project != "-- Chọn Dự Án --":
             df_history = calculate_historical_kpi(df, all_dates)
             df_curr = df[df['Date'] == curr_date].copy()
             
-            # Calculate trends
+            # Calculate trends - dùng ngày liền kề (hôm qua) cho Workstation
             prev_date = all_dates[1] if len(all_dates) > 1 else None
             
             if prev_date is not None:
@@ -990,14 +591,13 @@ if selected_project != "-- Chọn Dự Án --":
                         """, unsafe_allow_html=True)
             
             # === KPI SECTION ===
-            st.markdown(f"""
+            st.markdown("""
             <div class="section-header">
                 <div class="icon">📊</div>
                 <h2>Phân bổ & KPI</h2>
             </div>
             """, unsafe_allow_html=True)
             
-            # Compare selector
             compare_options = get_available_compare_dates(all_dates, curr_date)
             
             col_cmp, col_hist = st.columns([2, 1])
@@ -1009,9 +609,11 @@ if selected_project != "-- Chọn Dự Án --":
                         index=0
                     )
                     compare_date = compare_options[selected_compare_label]
+                    compare_date_str = pd.to_datetime(compare_date).strftime('%d/%m/%Y')
                 else:
                     selected_compare_label = None
                     compare_date = None
+                    compare_date_str = None
                     st.info("Chỉ có 1 ngày dữ liệu")
                     
             with col_hist:
@@ -1029,9 +631,11 @@ if selected_project != "-- Chọn Dự Án --":
                     pct = (cnt / total_kw) * 100 if total_kw > 0 else 0
                     
                     comp_data = comparison.get(f'top{lim}', {})
+                    comp_count = comp_data.get('compare', cnt)
                     delta = comp_data.get('delta', 0)
                     delta_pct = comp_data.get('delta_pct', 0)
                     
+                    # FIX #1: Logic đúng - delta dương = tăng, delta âm = giảm
                     if delta > 0:
                         trend_html = f'<div class="trend up">↑ +{delta}</div>'
                         trend_class = "success"
@@ -1042,15 +646,19 @@ if selected_project != "-- Chọn Dự Án --":
                         trend_html = f'<div class="trend stable">— 0</div>'
                         trend_class = "info"
                     
-                    compare_text = f"vs {selected_compare_label}: {delta:+d} ({delta_pct:+.1f}%)" if selected_compare_label else ""
+                    compare_text = f"vs {compare_date_str}: {delta:+d} ({delta_pct:+.1f}%)" if compare_date_str else ""
                     
+                    # FIX #2: Hiển thị số KW cần thêm
                     target_html = ""
                     if lim in kpi:
-                        gap = pct - kpi[lim]
-                        if gap >= 0:
-                            target_html = f'<div class="target-status met">✓ Đạt +{gap:.1f}%</div>'
+                        target_kw = int(total_kw * kpi[lim] / 100)  # Số KW cần đạt
+                        gap_kw = cnt - target_kw  # Số KW chênh lệch
+                        gap_pct = pct - kpi[lim]
+                        
+                        if gap_pct >= 0:
+                            target_html = f'<div class="target-status met">✓ Đạt +{gap_pct:.1f}% (+{gap_kw} KW)</div>'
                         else:
-                            target_html = f'<div class="target-status miss">✗ Thiếu {gap:.1f}%</div>'
+                            target_html = f'<div class="target-status miss">✗ Thiếu {abs(gap_pct):.1f}% ({gap_kw} KW)</div>'
                     
                     st.markdown(f"""
                     <div class="kpi-card {trend_class}">
@@ -1084,13 +692,17 @@ if selected_project != "-- Chọn Dự Án --":
                         trend_html = f'<div class="trend stable">— 0</div>'
                         trend_class = "info"
                     
+                    # FIX #2: Hiển thị số KW cần thêm
                     target_html = ""
                     if lim in kpi:
-                        gap = pct - kpi[lim]
-                        if gap >= 0:
-                            target_html = f'<div class="target-status met">✓ Đạt +{gap:.1f}%</div>'
+                        target_kw = int(total_kw * kpi[lim] / 100)
+                        gap_kw = cnt - target_kw
+                        gap_pct = pct - kpi[lim]
+                        
+                        if gap_pct >= 0:
+                            target_html = f'<div class="target-status met">✓ Đạt +{gap_pct:.1f}% (+{gap_kw} KW)</div>'
                         else:
-                            target_html = f'<div class="target-status miss">✗ Thiếu {gap:.1f}%</div>'
+                            target_html = f'<div class="target-status miss">✗ Thiếu {abs(gap_pct):.1f}% ({gap_kw} KW)</div>'
                     
                     st.markdown(f"""
                     <div class="kpi-card {trend_class}">
@@ -1128,7 +740,7 @@ if selected_project != "-- Chọn Dự Án --":
             
             # History Table
             if show_history:
-                st.markdown(f"""
+                st.markdown("""
                 <div class="section-header" style="margin-top: 24px;">
                     <div class="icon">📈</div>
                     <h2>Lịch sử xếp hạng</h2>
@@ -1154,7 +766,7 @@ if selected_project != "-- Chọn Dự Án --":
                 )
 
             # === TOPIC HEALTH ===
-            st.markdown(f"""
+            st.markdown("""
             <div class="section-header">
                 <div class="icon">🎯</div>
                 <h2>Sức khỏe Topic</h2>
@@ -1173,7 +785,6 @@ if selected_project != "-- Chọn Dự Án --":
             
             df_topic_health = calculate_topic_health(df_curr, top_threshold)
             
-            # Topic Health Table
             st.dataframe(
                 df_topic_health[['Topic', 'Total_KW', 'In_Top', 'In_Top_Pct', 'Up', 'Down', 'Net_Flow']].rename(columns={
                     'Topic': 'Chủ đề',
@@ -1212,14 +823,64 @@ if selected_project != "-- Chọn Dự Án --":
             """, unsafe_allow_html=True)
 
             # === WORKSTATION ===
-            st.markdown(f"""
+            st.markdown("""
             <div class="section-header">
                 <div class="icon">⚡</div>
                 <h2>Workstation</h2>
             </div>
             """, unsafe_allow_html=True)
             
-            # Issue Analysis
+            # FIX #4: Dropdown chọn ngày so sánh cho Workstation
+            ws_compare_options = get_available_compare_dates(all_dates, curr_date)
+            
+            if ws_compare_options:
+                ws_col1, ws_col2 = st.columns([1, 3])
+                with ws_col1:
+                    ws_selected_compare = st.selectbox(
+                        "📅 So sánh với:",
+                        options=list(ws_compare_options.keys()),
+                        index=0,
+                        key="workstation_compare"
+                    )
+                    ws_compare_date = ws_compare_options[ws_selected_compare]
+                    ws_compare_date_str = pd.to_datetime(ws_compare_date).strftime('%d/%m/%Y')
+                
+                # Tính lại Change và Trend theo ngày đã chọn
+                ws_prev = df[df['Date'] == ws_compare_date][['Keyword_Join', 'Rank']].copy()
+                ws_prev = ws_prev.rename(columns={'Rank': 'Rank_Prev_WS'})
+                df_curr = df_curr.merge(ws_prev, on='Keyword_Join', how='left')
+                
+                def calc_change_ws(row):
+                    curr = row['Rank']
+                    prev = row['Rank_Prev_WS']
+                    if pd.isna(curr) or pd.isna(prev):
+                        return 0
+                    return int(prev) - int(curr)
+                
+                df_curr['Change_WS'] = df_curr.apply(calc_change_ws, axis=1)
+                
+                df_curr['Trend_Info_WS'] = df_curr.apply(
+                    lambda row: classify_trend_extended(row['Rank'], row['Rank_Prev_WS']), axis=1
+                )
+                df_curr['Trend_Label_WS'] = df_curr['Trend_Info_WS'].apply(lambda x: x['label'])
+                df_curr['Trend_Type_WS'] = df_curr['Trend_Info_WS'].apply(lambda x: x['type'])
+                df_curr['Trend_Severity_WS'] = df_curr['Trend_Info_WS'].apply(lambda x: x['severity'])
+                
+                curr_date_str = pd.to_datetime(curr_date).strftime('%d/%m/%Y')
+                with ws_col2:
+                    st.markdown(f"""
+                    <div class="workstation-compare-badge" style="margin-top: 28px;">
+                        📊 Đang xem: <strong>{curr_date_str}</strong> so với <strong>{ws_compare_date_str}</strong>
+                    </div>
+                    """, unsafe_allow_html=True)
+            else:
+                # Nếu chỉ có 1 ngày, dùng data mặc định
+                df_curr['Change_WS'] = df_curr['Change']
+                df_curr['Trend_Label_WS'] = df_curr['Trend_Label']
+                df_curr['Trend_Type_WS'] = df_curr['Trend_Type']
+                df_curr['Trend_Severity_WS'] = df_curr['Trend_Severity']
+                st.info("Chỉ có 1 ngày dữ liệu")
+            
             def analyze_issue(row):
                 t = clean_url_for_compare(row['Target URL'])
                 c = clean_url_for_compare(row['Actual_URL']) if pd.notna(row.get('Actual_URL')) else ""
@@ -1231,7 +892,6 @@ if selected_project != "-- Chọn Dự Án --":
 
             df_curr['Issue'] = df_curr.apply(analyze_issue, axis=1)
             
-            # Filters
             col_f1, col_f2, col_f3, col_f4, col_f5 = st.columns([2, 1, 1.5, 1.5, 2])
             
             with col_f1:
@@ -1246,7 +906,6 @@ if selected_project != "-- Chọn Dự Án --":
             with col_f5:
                 search_txt = st.text_input("Tìm kiếm", placeholder="Keyword hoặc URL...")
 
-            # Filter logic
             v = df_curr.copy()
             
             if sel_top: 
@@ -1260,7 +919,7 @@ if selected_project != "-- Chọn Dự Án --":
                     v = v[v['Rank'].notna() & (v['Rank'] <= top_val)]
             
             if sel_trend != "All":
-                v = v[v['Trend_Label'] == sel_trend]
+                v = v[v['Trend_Label_WS'] == sel_trend]
             
             if sel_issue != "All": 
                 v = v[v['Issue'] == sel_issue]
@@ -1272,13 +931,11 @@ if selected_project != "-- Chọn Dự Án --":
                     v['Actual_URL'].astype(str).str.lower().str.contains(s, na=False)
                 ]
 
-            v = v.sort_values(by=['Trend_Severity', 'Rank'], ascending=[False, True])
+            v = v.sort_values(by=['Trend_Severity_WS', 'Rank'], ascending=[False, True])
             
-            # Display columns
             v['Rank_Display'] = v['Rank'].apply(lambda x: int(x) if pd.notna(x) else ">100")
-            v['Change_Display'] = v['Change'].apply(lambda x: f"{int(x):+d}" if x != 0 else "-")
+            v['Change_Display'] = v['Change_WS'].apply(lambda x: f"{int(x):+d}" if x != 0 else "-")
 
-            # Results header
             st.markdown(f"""
             <div class="data-table-header">
                 <div class="title">🔍 Kết quả lọc <span class="count">{len(v)}</span></div>
@@ -1286,10 +943,10 @@ if selected_project != "-- Chọn Dự Án --":
             """, unsafe_allow_html=True)
 
             st.dataframe(
-                v[['Keyword', 'Topic', 'Rank_Display', 'Change_Display', 'Trend_Label', 'Issue', 'Actual_URL', 'Target URL']].rename(columns={
+                v[['Keyword', 'Topic', 'Rank_Display', 'Change_Display', 'Trend_Label_WS', 'Issue', 'Actual_URL', 'Target URL']].rename(columns={
                     'Rank_Display': 'Rank',
                     'Change_Display': 'Δ',
-                    'Trend_Label': 'Xu hướng'
+                    'Trend_Label_WS': 'Xu hướng'
                 }), 
                 use_container_width=True, 
                 height=500,
@@ -1299,44 +956,76 @@ if selected_project != "-- Chọn Dự Án --":
                 }
             )
             
-            # Stats bar
             st.markdown(f"""
             <div class="stats-bar">
-                <div class="stat-item">🚀 Tăng mạnh: <span class="value">{len(v[v['Trend_Type']=='surge'])}</span></div>
-                <div class="stat-item">↑ Tăng: <span class="value">{len(v[v['Trend_Type']=='up'])}</span></div>
-                <div class="stat-item">↓ Giảm: <span class="value">{len(v[v['Trend_Type']=='down'])}</span></div>
-                <div class="stat-item">🔥 Giảm mạnh: <span class="value">{len(v[v['Trend_Type']=='crash'])}</span></div>
-                <div class="stat-item">⚠ Rớt: <span class="value">{len(v[v['Trend_Type']=='dropped'])}</span></div>
-                <div class="stat-item">✦ Mới: <span class="value">{len(v[v['Trend_Type']=='new'])}</span></div>
+                <div class="stat-item">🚀 Tăng mạnh: <span class="value">{len(v[v['Trend_Type_WS']=='surge'])}</span></div>
+                <div class="stat-item">↑ Tăng: <span class="value">{len(v[v['Trend_Type_WS']=='up'])}</span></div>
+                <div class="stat-item">↓ Giảm: <span class="value">{len(v[v['Trend_Type_WS']=='down'])}</span></div>
+                <div class="stat-item">🔥 Giảm mạnh: <span class="value">{len(v[v['Trend_Type_WS']=='crash'])}</span></div>
+                <div class="stat-item">⚠ Rớt: <span class="value">{len(v[v['Trend_Type_WS']=='dropped'])}</span></div>
+                <div class="stat-item">✦ Mới: <span class="value">{len(v[v['Trend_Type_WS']=='new'])}</span></div>
             </div>
             """, unsafe_allow_html=True)
     else:
         st.markdown("""
-        <div class="empty-state">
-            <div style="font-size: 48px; margin-bottom: 16px;">📊</div>
-            <div class="title">Chưa có dữ liệu</div>
-            <div class="description">Vui lòng upload file ranking ở sidebar để bắt đầu phân tích</div>
+        <div style="text-align: center; padding: 60px 20px; background: white; border-radius: 16px; margin-top: 20px; border-top: 4px solid #2563eb;">
+            <div style="font-size: 48px; margin-bottom: 16px;">📤</div>
+            <h3 style="color: #1e40af; margin-bottom: 8px;">Chưa có dữ liệu ranking</h3>
+            <p style="color: #6b7280;">Vui lòng upload file ranking ở sidebar để bắt đầu phân tích</p>
         </div>
         """, unsafe_allow_html=True)
 else:
-    # Welcome screen
-    st.markdown(f"""
-    <div style="text-align: center; padding: 80px 20px;">
+    # Welcome / Setup screen
+    st.markdown("""
+    <div style="text-align: center; padding: 40px 20px;">
         <div style="font-size: 64px; margin-bottom: 24px;">📊</div>
-        <h1 style="font-size: 32px; font-weight: 700; color: var(--gray-800); margin-bottom: 12px;">
+        <h1 style="font-size: 32px; font-weight: 700; color: #1e40af; margin-bottom: 12px;">
             SEO Command Center
         </h1>
-        <p style="font-size: 16px; color: var(--gray-500); max-width: 500px; margin: 0 auto 32px auto;">
+        <p style="font-size: 16px; color: #6b7280; max-width: 500px; margin: 0 auto 32px auto;">
             Công cụ theo dõi và phân tích thứ hạng từ khóa SEO chuyên nghiệp
         </p>
-        <div style="background: white; padding: 32px; border-radius: 16px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 600px; margin: 0 auto; text-align: left;">
-            <h3 style="margin-bottom: 16px; color: var(--gray-800);">Bắt đầu nhanh</h3>
-            <ol style="color: var(--gray-600); line-height: 2;">
-                <li>Tạo folder dự án trong <code>projects/TenDuAn/</code></li>
-                <li>Thêm file <code>master.xlsx</code> (Keyword, Topic, Target URL)</li>
-                <li>Chọn dự án ở sidebar</li>
-                <li>Upload file ranking</li>
-            </ol>
-        </div>
     </div>
     """, unsafe_allow_html=True)
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("""
+        <div class="setup-card">
+            <h3>📋 Bước 1: Tạo Google Sheet</h3>
+            <ol>
+                <li>Tạo Google Sheet mới</li>
+                <li>Tạo tab <code>Settings</code> với các cột:
+                    <br>• project_name
+                    <br>• kpi_top3, kpi_top5, kpi_top10, kpi_top30
+                </li>
+                <li>Tạo tab <code>Master_[TenProject]</code> cho mỗi project với các cột:
+                    <br>• Keyword
+                    <br>• Topic  
+                    <br>• Target URL
+                </li>
+                <li>Share sheet với Service Account email</li>
+            </ol>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        st.markdown("""
+        <div class="setup-card">
+            <h3>🔑 Bước 2: Cấu hình Secrets</h3>
+            <ol>
+                <li>Tạo Google Cloud Project</li>
+                <li>Enable Google Sheets API</li>
+                <li>Tạo Service Account & download JSON key</li>
+                <li>Trong Streamlit Cloud, thêm vào Secrets:
+                    <br><code>[gcp_service_account]</code>
+                    <br><code>type = "service_account"</code>
+                    <br><code>project_id = "..."</code>
+                    <br><code>private_key = "..."</code>
+                    <br><code>client_email = "..."</code>
+                    <br>...
+                </li>
+            </ol>
+        </div>
+        """, unsafe_allow_html=True)
