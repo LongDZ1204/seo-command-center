@@ -3,7 +3,6 @@ import pandas as pd
 import unicodedata
 from google.oauth2.service_account import Credentials
 import gspread
-from io import StringIO
 
 # --- CẤU HÌNH GIAO DIỆN ---
 st.set_page_config(
@@ -144,126 +143,6 @@ st.markdown("""
         font-size: 13px;
         color: var(--primary-dark);
     }
-    
-    /* === V12 NEW STYLES - ACTION CENTER === */
-    .action-center-card {
-        background: white;
-        border-radius: var(--radius-lg);
-        padding: 24px;
-        box-shadow: var(--shadow-md);
-        border: 1px solid var(--gray-100);
-        margin-bottom: 16px;
-    }
-    .action-center-card.highlight {
-        border: 2px solid var(--primary);
-        background: linear-gradient(135deg, white 0%, var(--primary-bg) 100%);
-    }
-    .action-center-card .card-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        margin-bottom: 16px;
-    }
-    .action-center-card .topic-name {
-        font-size: 18px;
-        font-weight: 700;
-        color: var(--gray-800);
-    }
-    .action-center-card .topic-badge {
-        background: var(--primary);
-        color: white;
-        padding: 4px 12px;
-        border-radius: 20px;
-        font-size: 12px;
-        font-weight: 600;
-    }
-    .action-center-card .topic-badge.gold {
-        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-    }
-    .action-center-card .kw-count {
-        font-size: 28px;
-        font-weight: 700;
-        color: var(--primary);
-    }
-    .action-center-card .kw-label {
-        font-size: 13px;
-        color: var(--gray-500);
-    }
-    .action-center-card .best-url {
-        background: var(--success-bg);
-        border: 1px solid #a7f3d0;
-        padding: 12px 16px;
-        border-radius: var(--radius-md);
-        margin-top: 12px;
-    }
-    .action-center-card .best-url-label {
-        font-size: 11px;
-        font-weight: 600;
-        color: var(--success);
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        margin-bottom: 4px;
-    }
-    .action-center-card .best-url-link {
-        font-size: 13px;
-        color: var(--gray-700);
-        word-break: break-all;
-    }
-    .action-center-card .keyword-list {
-        margin-top: 12px;
-        padding: 12px;
-        background: var(--gray-50);
-        border-radius: var(--radius-sm);
-        font-size: 12px;
-        color: var(--gray-600);
-    }
-    
-    .gap-summary-box {
-        background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-        color: white;
-        padding: 20px 24px;
-        border-radius: var(--radius-lg);
-        margin-bottom: 20px;
-    }
-    .gap-summary-box .gap-title {
-        font-size: 14px;
-        opacity: 0.9;
-        margin-bottom: 8px;
-    }
-    .gap-summary-box .gap-value {
-        font-size: 36px;
-        font-weight: 700;
-    }
-    .gap-summary-box .gap-detail {
-        font-size: 13px;
-        opacity: 0.8;
-        margin-top: 8px;
-    }
-    
-    .striking-info {
-        background: var(--warning-bg);
-        border: 1px solid #fde68a;
-        padding: 12px 16px;
-        border-radius: var(--radius-md);
-        margin-bottom: 16px;
-        font-size: 13px;
-        color: var(--gray-700);
-    }
-    .striking-info strong {
-        color: var(--warning);
-    }
-    
-    /* Override indicator */
-    .override-indicator {
-        background: var(--warning-bg);
-        border: 1px solid var(--warning-light);
-        color: var(--warning);
-        padding: 4px 8px;
-        border-radius: 4px;
-        font-size: 11px;
-        font-weight: 600;
-        margin-left: 8px;
-    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -400,24 +279,7 @@ def classify_trend_extended(current_rank, previous_rank, threshold=100):
 def process_ranking_data(uploaded_file, master_df):
     try:
         df = pd.read_excel(uploaded_file)
-        return _process_ranking_dataframe(df, master_df)
-    except Exception as e:
-        st.error(f"Lỗi Tracking File: {e}")
-        return pd.DataFrame(), [], []
-
-# === V12 NEW: Parse Paste Data ===
-def process_paste_data(paste_text, master_df):
-    """Parse dữ liệu paste từ Excel (Tab-separated)"""
-    try:
-        df = pd.read_csv(StringIO(paste_text), sep='\t')
-        return _process_ranking_dataframe(df, master_df)
-    except Exception as e:
-        st.error(f"Lỗi parse Paste Data: {e}")
-        return pd.DataFrame(), [], []
-
-def _process_ranking_dataframe(df, master_df):
-    """Core logic xử lý ranking dataframe (dùng chung cho Upload và Paste)"""
-    try:
+        
         rank_cols_lower = [str(c).lower().strip() for c in df.columns]
         key_col, url_col = None, None
         
@@ -466,7 +328,7 @@ def _process_ranking_dataframe(df, master_df):
         return full_df.sort_values(by=['Date', 'Keyword'], ascending=[False, True]), missing_keys, all_dates
         
     except Exception as e:
-        st.error(f"Lỗi xử lý data: {e}")
+        st.error(f"Lỗi Tracking File: {e}")
         return pd.DataFrame(), [], []
 
 # --- ANALYSIS FUNCTIONS ---
@@ -567,89 +429,6 @@ def calculate_topic_health(df_curr, top_n_threshold=10):
     
     return topic_health.reset_index().sort_values('In_Top_Pct', ascending=False)
 
-
-# === V12 NEW: KPI Gap Filler Functions ===
-
-def get_striking_distance_range(target_top):
-    """Định nghĩa vùng tấn công cho mỗi mục tiêu"""
-    ranges = {
-        3: (4, 10),      # Target Top 3 -> Quét rank 4-10
-        5: (6, 15),      # Target Top 5 -> Quét rank 6-15
-        10: (11, 20),    # Target Top 10 -> Quét rank 11-20 (trang 2)
-        30: (31, 50),    # Target Top 30 -> Quét rank 31-50
-    }
-    return ranges.get(target_top, (target_top + 1, target_top + 20))
-
-def calculate_kpi_gap(df_curr, total_kw, target_pct, target_top):
-    """Tính toán Gap cho KPI cụ thể"""
-    current_count = len(df_curr[df_curr['Rank'].notna() & (df_curr['Rank'] <= target_top)])
-    current_pct = (current_count / total_kw * 100) if total_kw > 0 else 0
-    
-    target_count = int(total_kw * target_pct / 100)
-    gap_count = target_count - current_count
-    gap_pct = target_pct - current_pct
-    
-    return {
-        'current_count': current_count,
-        'current_pct': round(current_pct, 1),
-        'target_count': target_count,
-        'target_pct': target_pct,
-        'gap_count': gap_count,
-        'gap_pct': round(gap_pct, 1),
-        'is_met': gap_count <= 0
-    }
-
-def find_striking_distance_keywords(df_curr, target_top):
-    """Tìm các keyword trong vùng tấn công"""
-    min_rank, max_rank = get_striking_distance_range(target_top)
-    
-    striking_df = df_curr[
-        (df_curr['Rank'].notna()) & 
-        (df_curr['Rank'] >= min_rank) & 
-        (df_curr['Rank'] <= max_rank)
-    ].copy()
-    
-    return striking_df
-
-def analyze_topic_opportunities(striking_df, target_top):
-    """Phân tích cơ hội theo Topic - tìm Topic Cứu Tinh"""
-    if striking_df.empty:
-        return pd.DataFrame()
-    
-    # Gom nhóm theo Topic
-    topic_analysis = striking_df.groupby('Topic').agg({
-        'Keyword': 'count',
-        'Rank': 'mean',
-        'Target URL': lambda x: x.mode().iloc[0] if len(x.mode()) > 0 else x.iloc[0],
-        'Actual_URL': lambda x: x.mode().iloc[0] if 'Actual_URL' in striking_df.columns and len(x.mode()) > 0 else ''
-    }).rename(columns={
-        'Keyword': 'KW_Count',
-        'Rank': 'Avg_Rank',
-        'Target URL': 'Best_URL',
-        'Actual_URL': 'Current_URL'
-    })
-    
-    # Tìm Best URL cho mỗi topic (URL có nhiều keyword nhất trong vùng tấn công)
-    url_counts = striking_df.groupby(['Topic', 'Target URL']).size().reset_index(name='url_kw_count')
-    best_urls = url_counts.loc[url_counts.groupby('Topic')['url_kw_count'].idxmax()]
-    best_urls = best_urls.set_index('Topic')['Target URL'].rename('Best_Target_URL')
-    
-    topic_analysis = topic_analysis.join(best_urls)
-    topic_analysis['Best_URL'] = topic_analysis['Best_Target_URL'].fillna(topic_analysis['Best_URL'])
-    
-    # Lấy danh sách keywords cho mỗi topic
-    kw_lists = striking_df.groupby('Topic')['Keyword'].apply(list).rename('Keywords')
-    topic_analysis = topic_analysis.join(kw_lists)
-    
-    # Sắp xếp theo số lượng keyword giảm dần
-    topic_analysis = topic_analysis.sort_values('KW_Count', ascending=False).reset_index()
-    
-    # Thêm ranking
-    topic_analysis['Rank_Priority'] = range(1, len(topic_analysis) + 1)
-    
-    return topic_analysis
-
-
 # === MAIN APP ===
 
 # Sidebar
@@ -659,7 +438,7 @@ with st.sidebar:
         <div style="font-size: 24px; font-weight: 700; color: white; display: flex; align-items: center; justify-content: center; gap: 10px;">
             📊 SEO Center
         </div>
-        <div style="font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 4px;">Version 12.0 - Action Center</div>
+        <div style="font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 4px;">Version 10.1 - Cloud Edition</div>
     </div>
     """, unsafe_allow_html=True)
     
@@ -693,70 +472,25 @@ with st.sidebar:
                 if selected_project != "-- Chọn Dự Án --":
                     project_settings = projects_df[projects_df['project_name'] == selected_project].iloc[0]
                     
-                    # === V12 NEW: Manual KPI Override ===
-                    st.markdown("<div style='color: white; margin: 16px 0 8px 0;'>🎯 <strong>KPI Targets</strong> <span style='font-size:11px; opacity:0.7;'>(Override)</span></div>", unsafe_allow_html=True)
+                    st.markdown("<div style='color: white; margin: 16px 0 8px 0;'>🎯 <strong>KPI Targets</strong></div>", unsafe_allow_html=True)
                     
-                    # Load default từ Sheet
-                    default_kpi = {
-                        3: int(project_settings.get('kpi_top3', 30)),
-                        5: int(project_settings.get('kpi_top5', 50)),
-                        10: int(project_settings.get('kpi_top10', 70)),
-                        30: int(project_settings.get('kpi_top30', 90))
+                    kpi = {
+                        3: st.number_input("Top 3 (%)", value=int(project_settings.get('kpi_top3', 30)), min_value=0, max_value=100, step=5),
+                        5: st.number_input("Top 5 (%)", value=int(project_settings.get('kpi_top5', 50)), min_value=0, max_value=100, step=5),
+                        10: st.number_input("Top 10 (%)", value=int(project_settings.get('kpi_top10', 70)), min_value=0, max_value=100, step=5),
+                        30: st.number_input("Top 30 (%)", value=int(project_settings.get('kpi_top30', 90)), min_value=0, max_value=100, step=5)
                     }
                     
-                    col_kpi1, col_kpi2 = st.columns(2)
-                    with col_kpi1:
-                        kpi_3 = st.number_input("Top 3 (%)", value=default_kpi[3], min_value=0, max_value=100, step=5, key="kpi_3")
-                        kpi_10 = st.number_input("Top 10 (%)", value=default_kpi[10], min_value=0, max_value=100, step=5, key="kpi_10")
-                    with col_kpi2:
-                        kpi_5 = st.number_input("Top 5 (%)", value=default_kpi[5], min_value=0, max_value=100, step=5, key="kpi_5")
-                        kpi_30 = st.number_input("Top 30 (%)", value=default_kpi[30], min_value=0, max_value=100, step=5, key="kpi_30")
-                    
-                    kpi = {3: kpi_3, 5: kpi_5, 10: kpi_10, 30: kpi_30}
-                    
-                    # Hiển thị indicator nếu có override
-                    kpi_overridden = any(kpi[k] != default_kpi[k] for k in [3, 5, 10, 30])
-                    if kpi_overridden:
-                        st.markdown("""
-                        <div style="background: rgba(245, 158, 11, 0.2); border: 1px solid rgba(245, 158, 11, 0.5); 
-                                    padding: 8px 12px; border-radius: 6px; font-size: 12px; color: #fbbf24; margin-top: 8px;">
-                            ⚡ KPI đang ở chế độ Override (khác với Sheet gốc)
-                        </div>
-                        """, unsafe_allow_html=True)
-                    
-                    # === V12 NEW: Dual Input Mode ===
-                    st.markdown("<div style='color: white; margin: 16px 0 8px 0;'>📤 <strong>Nhập dữ liệu Ranking</strong></div>", unsafe_allow_html=True)
-                    
-                    input_mode = st.radio(
-                        "Phương thức nhập",
-                        options=["Upload File", "Paste Data"],
-                        horizontal=True,
-                        label_visibility="collapsed"
-                    )
-                    
-                    uploaded_file = None
-                    paste_data = None
-                    
-                    if input_mode == "Upload File":
-                        uploaded_file = st.file_uploader("Upload file", type=['xlsx', 'xls'], label_visibility="collapsed")
-                    else:
-                        st.markdown("<div style='font-size: 11px; color: rgba(255,255,255,0.6); margin-bottom: 8px;'>Copy từ Excel (bao gồm Header) và paste vào đây:</div>", unsafe_allow_html=True)
-                        paste_data = st.text_area(
-                            "Paste data",
-                            height=150,
-                            placeholder="Keyword\tURL\t01/01/2025\t02/01/2025\n...",
-                            label_visibility="collapsed"
-                        )
+                    st.markdown("<div style='color: white; margin: 16px 0 8px 0;'>📤 <strong>Upload Ranking</strong></div>", unsafe_allow_html=True)
+                    uploaded_file = st.file_uploader("Upload file", type=['xlsx', 'xls'], label_visibility="collapsed")
             else:
                 st.warning("Không tìm thấy tab 'Settings' hoặc cột 'project_name'")
                 selected_project = "-- Chọn Dự Án --"
                 uploaded_file = None
-                paste_data = None
         else:
             st.info("Nhập URL Google Sheet")
             selected_project = "-- Chọn Dự Án --"
             uploaded_file = None
-            paste_data = None
     else:
         st.markdown("""
         <div class="connection-status disconnected">
@@ -766,606 +500,478 @@ with st.sidebar:
         st.info("Cần cấu hình secrets.toml")
         selected_project = "-- Chọn Dự Án --"
         uploaded_file = None
-        paste_data = None
 
 # Main Content
 if gc and spreadsheet_url and selected_project != "-- Chọn Dự Án --":
     master_df = load_master_from_sheet(gc, spreadsheet_url, selected_project)
     
-    # === V12: Xử lý cả Upload và Paste ===
-    has_data = False
-    if input_mode == "Upload File" and uploaded_file:
+    if uploaded_file:
         df, missing_keys, all_dates = process_ranking_data(uploaded_file, master_df)
-        has_data = not df.empty
-    elif input_mode == "Paste Data" and paste_data and paste_data.strip():
-        df, missing_keys, all_dates = process_paste_data(paste_data, master_df)
-        has_data = not df.empty
-    else:
-        df = pd.DataFrame()
-        missing_keys = []
-        all_dates = []
-    
-    if has_data and len(all_dates) > 0:
-        curr_date = all_dates[0]
-        df_history = calculate_historical_kpi(df, all_dates)
-        df_curr = df[df['Date'] == curr_date].copy()
         
-        # Calculate trends - dùng ngày liền kề (hôm qua) cho Workstation
-        prev_date = all_dates[1] if len(all_dates) > 1 else None
-        
-        if prev_date is not None:
-            prev = df[df['Date'] == prev_date][['Keyword_Join', 'Rank']].copy()
-            prev = prev.rename(columns={'Rank': 'Rank_Prev'})
-            df_curr = df_curr.merge(prev, on='Keyword_Join', how='left')
-        else:
-            df_curr['Rank_Prev'] = None
-        
-        def calc_change(row):
-            curr = row['Rank']
-            prev = row['Rank_Prev']
-            if pd.isna(curr) or pd.isna(prev):
-                return 0
-            return int(prev) - int(curr)
-        
-        df_curr['Change'] = df_curr.apply(calc_change, axis=1)
-        
-        df_curr['Trend_Info'] = df_curr.apply(
-            lambda row: classify_trend_extended(row['Rank'], row['Rank_Prev']), axis=1
-        )
-        df_curr['Trend_Label'] = df_curr['Trend_Info'].apply(lambda x: x['label'])
-        df_curr['Trend_Type'] = df_curr['Trend_Info'].apply(lambda x: x['type'])
-        df_curr['Trend_Severity'] = df_curr['Trend_Info'].apply(lambda x: x['severity'])
-
-        # === HEADER ===
-        total_kw = len(df_curr)
-        top10_count = len(df_curr[df_curr['Rank'].notna() & (df_curr['Rank'] <= 10)])
-        
-        # V12: Hiển thị Override indicator trong header nếu có
-        override_badge = ""
-        if kpi_overridden:
-            override_badge = '<span class="stat-badge" style="background: rgba(245,158,11,0.3);">⚡ KPI Override</span>'
-        
-        st.markdown(f"""
-        <div class="dashboard-header">
-            <h1>📊 Dashboard: {selected_project}</h1>
-            <div class="subtitle">
-                <span class="stat-badge">📅 {pd.to_datetime(curr_date).strftime('%d/%m/%Y')}</span>
-                <span class="stat-badge"># {total_kw} keywords</span>
-                <span class="stat-badge">📈 {len(all_dates)} ngày dữ liệu</span>
-                <span class="stat-badge">🎯 {top10_count} trong Top 10</span>
-                {override_badge}
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # === ALERTS ===
-        dropped_kw = df_curr[df_curr['Trend_Type'] == 'dropped']
-        new_kw = df_curr[df_curr['Trend_Type'] == 'new']
-        
-        if len(dropped_kw) > 0 or len(new_kw) > 0:
-            col_a1, col_a2 = st.columns(2)
+        if not df.empty and len(all_dates) > 0:
+            curr_date = all_dates[0]
+            df_history = calculate_historical_kpi(df, all_dates)
+            df_curr = df[df['Date'] == curr_date].copy()
             
-            with col_a1:
-                if len(dropped_kw) > 0:
-                    dropped_list = ', '.join(dropped_kw['Keyword'].head(3).tolist())
-                    more = f" và {len(dropped_kw) - 3} keywords khác" if len(dropped_kw) > 3 else ""
-                    st.markdown(f"""
-                    <div class="alert-box danger">
-                        <div class="icon-wrapper">⚠</div>
-                        <div class="content">
-                            <div class="title">{len(dropped_kw)} từ khóa rớt khỏi Top 100</div>
-                            <div class="description">{dropped_list}{more}</div>
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
+            # Calculate trends - dùng ngày liền kề (hôm qua) cho Workstation
+            prev_date = all_dates[1] if len(all_dates) > 1 else None
             
-            with col_a2:
-                if len(new_kw) > 0:
-                    new_list = ', '.join(new_kw['Keyword'].head(3).tolist())
-                    more = f" và {len(new_kw) - 3} keywords khác" if len(new_kw) > 3 else ""
-                    st.markdown(f"""
-                    <div class="alert-box success">
-                        <div class="icon-wrapper">✦</div>
-                        <div class="content">
-                            <div class="title">{len(new_kw)} từ khóa mới vào Top 100</div>
-                            <div class="description">{new_list}{more}</div>
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
-        
-        # === KPI SECTION ===
-        st.markdown("""
-        <div class="section-header">
-            <div class="icon">📊</div>
-            <h2>Phân bổ & KPI</h2>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        compare_options = get_available_compare_dates(all_dates, curr_date)
-        
-        col_cmp, col_hist = st.columns([2, 1])
-        with col_cmp:
-            if compare_options:
-                selected_compare_label = st.selectbox(
-                    "📅 So sánh với:",
-                    options=list(compare_options.keys()),
-                    index=0
-                )
-                compare_date = compare_options[selected_compare_label]
-                compare_date_str = pd.to_datetime(compare_date).strftime('%d/%m/%Y')
+            if prev_date is not None:
+                prev = df[df['Date'] == prev_date][['Keyword_Join', 'Rank']].copy()
+                prev = prev.rename(columns={'Rank': 'Rank_Prev'})
+                df_curr = df_curr.merge(prev, on='Keyword_Join', how='left')
             else:
-                selected_compare_label = None
-                compare_date = None
-                compare_date_str = None
-                st.info("Chỉ có 1 ngày dữ liệu")
-                
-        with col_hist:
-            show_history = st.checkbox("📈 Hiển thị lịch sử", value=False)
-        
-        comparison = calculate_comparison(df_history, curr_date, compare_date) if compare_date else {}
-        
-        # KPI Cards
-        limits = [3, 5, 10, 15, 30, 50, 100]
-        cols = st.columns(4)
-        
-        for i, lim in enumerate(limits[:4]):
-            with cols[i]:
-                cnt = len(df_curr[df_curr['Rank'].notna() & (df_curr['Rank'] <= lim)])
-                pct = (cnt / total_kw) * 100 if total_kw > 0 else 0
-                
-                comp_data = comparison.get(f'top{lim}', {})
-                comp_count = comp_data.get('compare', cnt)
-                delta = comp_data.get('delta', 0)
-                delta_pct = comp_data.get('delta_pct', 0)
-                
-                # FIX #1: Logic đúng - delta dương = tăng, delta âm = giảm
-                if delta > 0:
-                    trend_html = f'<div class="trend up">↑ +{delta}</div>'
-                    trend_class = "success"
-                elif delta < 0:
-                    trend_html = f'<div class="trend down">↓ {delta}</div>'
-                    trend_class = "danger"
-                else:
-                    trend_html = f'<div class="trend stable">— 0</div>'
-                    trend_class = "info"
-                
-                compare_text = f"vs {compare_date_str}: {delta:+d} ({delta_pct:+.1f}%)" if compare_date_str else ""
-                
-                # FIX #2: Hiển thị số KW cần thêm
-                target_html = ""
-                if lim in kpi:
-                    target_kw = int(total_kw * kpi[lim] / 100)  # Số KW cần đạt
-                    gap_kw = cnt - target_kw  # Số KW chênh lệch
-                    gap_pct = pct - kpi[lim]
-                    
-                    if gap_pct >= 0:
-                        target_html = f'<div class="target-status met">✓ Đạt +{gap_pct:.1f}% (+{gap_kw} KW)</div>'
-                    else:
-                        target_html = f'<div class="target-status miss">✗ Thiếu {abs(gap_pct):.1f}% ({gap_kw} KW)</div>'
-                
-                st.markdown(f"""
-                <div class="kpi-card {trend_class}">
-                    <div class="label">Top {lim}</div>
-                    <div class="value">{cnt}</div>
-                    <div class="percentage">{pct:.1f}%</div>
-                    {trend_html}
-                    <div class="compare">{compare_text}</div>
-                    {target_html}
-                </div>
-                """, unsafe_allow_html=True)
-        
-        # Second row
-        cols2 = st.columns(4)
-        
-        for i, lim in enumerate(limits[4:7]):
-            with cols2[i]:
-                cnt = len(df_curr[df_curr['Rank'].notna() & (df_curr['Rank'] <= lim)])
-                pct = (cnt / total_kw) * 100 if total_kw > 0 else 0
-                
-                comp_data = comparison.get(f'top{lim}', {})
-                delta = comp_data.get('delta', 0)
-                
-                if delta > 0:
-                    trend_html = f'<div class="trend up">↑ +{delta}</div>'
-                    trend_class = "success"
-                elif delta < 0:
-                    trend_html = f'<div class="trend down">↓ {delta}</div>'
-                    trend_class = "danger"
-                else:
-                    trend_html = f'<div class="trend stable">— 0</div>'
-                    trend_class = "info"
-                
-                # FIX #2: Hiển thị số KW cần thêm
-                target_html = ""
-                if lim in kpi:
-                    target_kw = int(total_kw * kpi[lim] / 100)
-                    gap_kw = cnt - target_kw
-                    gap_pct = pct - kpi[lim]
-                    
-                    if gap_pct >= 0:
-                        target_html = f'<div class="target-status met">✓ Đạt +{gap_pct:.1f}% (+{gap_kw} KW)</div>'
-                    else:
-                        target_html = f'<div class="target-status miss">✗ Thiếu {abs(gap_pct):.1f}% ({gap_kw} KW)</div>'
-                
-                st.markdown(f"""
-                <div class="kpi-card {trend_class}">
-                    <div class="label">Top {lim}</div>
-                    <div class="value">{cnt}</div>
-                    <div class="percentage">{pct:.1f}%</div>
-                    {trend_html}
-                    {target_html}
-                </div>
-                """, unsafe_allow_html=True)
-        
-        # OUT > 100 Card
-        with cols2[3]:
-            cnt_out = len(df_curr[df_curr['Rank'].isna()])
-            pct_out = (cnt_out / total_kw * 100) if total_kw > 0 else 0
-            net = len(new_kw) - len(dropped_kw)
+                df_curr['Rank_Prev'] = None
             
-            net_color = "var(--success)" if net >= 0 else "var(--danger)"
-            net_symbol = "+" if net >= 0 else ""
-            
-            st.markdown(f"""
-            <div class="kpi-card danger">
-                <div class="label">Out of Top 100</div>
-                <div class="value">{cnt_out}</div>
-                <div class="percentage">{pct_out:.1f}%</div>
-                <div style="margin-top: 12px; font-size: 13px; color: var(--gray-500);">
-                    <span style="color: var(--danger);">↓ Rớt: {len(dropped_kw)}</span> &nbsp;|&nbsp; 
-                    <span style="color: var(--success);">↑ Mới: {len(new_kw)}</span>
-                </div>
-                <div style="margin-top: 8px; font-weight: 600; font-size: 15px; color: {net_color};">
-                    Net: {net_symbol}{net}
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        # History Table
-        if show_history:
-            st.markdown("""
-            <div class="section-header" style="margin-top: 24px;">
-                <div class="icon">📈</div>
-                <h2>Lịch sử xếp hạng</h2>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            display_history = df_history.copy()
-            display_history['Date'] = pd.to_datetime(display_history['Date']).dt.strftime('%d/%m/%Y')
-            
-            display_cols = ['Date', 'Total_KW']
-            for top_n in [3, 5, 10, 30, 100]:
-                display_cols.append(f'Top{top_n}_count')
-            display_cols.append('Out100_count')
-            
-            rename_map = {'Total_KW': 'Tổng KW', 'Out100_count': 'Out>100'}
-            for top_n in [3, 5, 10, 30, 100]:
-                rename_map[f'Top{top_n}_count'] = f'Top {top_n}'
-            
-            st.dataframe(
-                display_history[display_cols].rename(columns=rename_map),
-                use_container_width=True,
-                hide_index=True
-            )
-
-        # === V12 NEW: ACTION CENTER - KPI Gap Filler ===
-        st.markdown("""
-        <div class="section-header">
-            <div class="icon">🎯</div>
-            <h2>Action Center - Lấp đầy KPI</h2>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Tabs cho từng mục tiêu
-        action_tabs = st.tabs(["🥇 Top 3", "🥈 Top 5", "🥉 Top 10", "📊 Top 30"])
-        
-        for tab_idx, (tab, target_top) in enumerate(zip(action_tabs, [3, 5, 10, 30])):
-            with tab:
-                # Tính Gap
-                gap_info = calculate_kpi_gap(df_curr, total_kw, kpi[target_top], target_top)
-                
-                # Tìm keywords trong vùng tấn công
-                striking_df = find_striking_distance_keywords(df_curr, target_top)
-                min_rank, max_rank = get_striking_distance_range(target_top)
-                
-                # Layout 2 cột
-                col_gap, col_striking = st.columns([1, 2])
-                
-                with col_gap:
-                    if gap_info['is_met']:
-                        st.markdown(f"""
-                        <div class="gap-summary-box" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
-                            <div class="gap-title">✅ KPI Top {target_top} đã đạt!</div>
-                            <div class="gap-value">+{abs(gap_info['gap_count'])} KW</div>
-                            <div class="gap-detail">
-                                Hiện tại: {gap_info['current_count']}/{gap_info['target_count']} ({gap_info['current_pct']}%)
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                    else:
-                        st.markdown(f"""
-                        <div class="gap-summary-box">
-                            <div class="gap-title">🎯 Cần thêm để đạt KPI Top {target_top}</div>
-                            <div class="gap-value">{abs(gap_info['gap_count'])} KW</div>
-                            <div class="gap-detail">
-                                Hiện tại: {gap_info['current_count']}/{gap_info['target_count']} ({gap_info['current_pct']}% / {gap_info['target_pct']}%)
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True)
-                
-                with col_striking:
-                    st.markdown(f"""
-                    <div class="striking-info">
-                        <strong>🎯 Vùng tấn công:</strong> Rank {min_rank} - {max_rank}<br>
-                        <strong>📊 Số keyword sẵn sàng:</strong> {len(striking_df)} keywords đang chờ được đẩy lên Top {target_top}
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                # Phân tích Topic Opportunities
-                if not striking_df.empty:
-                    topic_opportunities = analyze_topic_opportunities(striking_df, target_top)
-                    
-                    if not topic_opportunities.empty:
-                        st.markdown(f"#### 🏆 Topic Cứu Tinh - Ưu tiên tối ưu")
-                        
-                        # Hiển thị top 5 topics
-                        for idx, row in topic_opportunities.head(5).iterrows():
-                            is_top = row['Rank_Priority'] == 1
-                            card_class = "highlight" if is_top else ""
-                            badge_class = "gold" if is_top else ""
-                            badge_text = "🥇 #1 Priority" if is_top else f"#{row['Rank_Priority']}"
-                            
-                            keywords_preview = ', '.join(row['Keywords'][:5])
-                            more_kw = f" +{len(row['Keywords']) - 5} khác" if len(row['Keywords']) > 5 else ""
-                            
-                            st.markdown(f"""
-                            <div class="action-center-card {card_class}">
-                                <div class="card-header">
-                                    <div>
-                                        <div class="topic-name">{row['Topic']}</div>
-                                        <div class="kw-label">Avg Rank: {row['Avg_Rank']:.1f}</div>
-                                    </div>
-                                    <div style="text-align: right;">
-                                        <div class="topic-badge {badge_class}">{badge_text}</div>
-                                        <div class="kw-count">{int(row['KW_Count'])}</div>
-                                        <div class="kw-label">keywords trong vùng tấn công</div>
-                                    </div>
-                                </div>
-                                <div class="best-url">
-                                    <div class="best-url-label">🎯 Best URL để tối ưu</div>
-                                    <div class="best-url-link">{row['Best_URL'] if row['Best_URL'] else 'Chưa có Target URL'}</div>
-                                </div>
-                                <div class="keyword-list">
-                                    <strong>Keywords:</strong> {keywords_preview}{more_kw}
-                                </div>
-                            </div>
-                            """, unsafe_allow_html=True)
-                        
-                        # Expander xem chi tiết
-                        with st.expander(f"📋 Xem tất cả {len(topic_opportunities)} Topics"):
-                            st.dataframe(
-                                topic_opportunities[['Rank_Priority', 'Topic', 'KW_Count', 'Avg_Rank', 'Best_URL']].rename(columns={
-                                    'Rank_Priority': '#',
-                                    'Topic': 'Chủ đề',
-                                    'KW_Count': 'Số KW',
-                                    'Avg_Rank': 'Rank TB',
-                                    'Best_URL': 'URL ưu tiên'
-                                }),
-                                use_container_width=True,
-                                hide_index=True
-                            )
-                    else:
-                        st.info(f"Không có keyword nào trong vùng tấn công (Rank {min_rank}-{max_rank})")
-                else:
-                    st.info(f"Không có keyword nào trong vùng tấn công (Rank {min_rank}-{max_rank})")
-
-        # === TOPIC HEALTH ===
-        st.markdown("""
-        <div class="section-header">
-            <div class="icon">🎯</div>
-            <h2>Sức khỏe Topic</h2>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        col_th1, col_th2 = st.columns([3, 1])
-        with col_th1:
-            top_threshold = st.radio(
-                "Phân tích theo ngưỡng:",
-                options=[3, 5, 10, 30, 100],
-                format_func=lambda x: f"Top {x}",
-                horizontal=True,
-                index=2
-            )
-        
-        df_topic_health = calculate_topic_health(df_curr, top_threshold)
-        
-        st.dataframe(
-            df_topic_health[['Topic', 'Total_KW', 'In_Top', 'In_Top_Pct', 'Up', 'Down', 'Net_Flow']].rename(columns={
-                'Topic': 'Chủ đề',
-                'Total_KW': 'Tổng KW',
-                'In_Top': f'Trong Top {top_threshold}',
-                'In_Top_Pct': f'% Top {top_threshold}',
-                'Up': '↑ Tăng',
-                'Down': '↓ Giảm',
-                'Net_Flow': 'Net Flow'
-            }),
-            use_container_width=True,
-            hide_index=True,
-            column_config={
-                'Net Flow': st.column_config.ProgressColumn(
-                    'Net Flow',
-                    min_value=-10,
-                    max_value=10,
-                    format='%d'
-                )
-            }
-        )
-        
-        total_in_top = df_topic_health['In_Top'].sum()
-        total_kw_topic = df_topic_health['Total_KW'].sum()
-        st.markdown(f"""
-        <div class="stats-bar">
-            <div class="stat-item">
-                🎯
-                <span>Tổng quan: <span class="value">{int(total_in_top)}/{int(total_kw_topic)}</span> keywords trong Top {top_threshold}</span>
-            </div>
-            <div class="stat-item">
-                📊
-                <span>Tỷ lệ: <span class="value">{total_in_top/total_kw_topic*100:.1f}%</span></span>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-        # === WORKSTATION ===
-        st.markdown("""
-        <div class="section-header">
-            <div class="icon">⚡</div>
-            <h2>Workstation</h2>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # FIX #4: Dropdown chọn ngày so sánh cho Workstation
-        ws_compare_options = get_available_compare_dates(all_dates, curr_date)
-        
-        if ws_compare_options:
-            ws_col1, ws_col2 = st.columns([1, 3])
-            with ws_col1:
-                ws_selected_compare = st.selectbox(
-                    "📅 So sánh với:",
-                    options=list(ws_compare_options.keys()),
-                    index=0,
-                    key="workstation_compare"
-                )
-                ws_compare_date = ws_compare_options[ws_selected_compare]
-                ws_compare_date_str = pd.to_datetime(ws_compare_date).strftime('%d/%m/%Y')
-            
-            # Tính lại Change và Trend theo ngày đã chọn
-            ws_prev = df[df['Date'] == ws_compare_date][['Keyword_Join', 'Rank']].copy()
-            ws_prev = ws_prev.rename(columns={'Rank': 'Rank_Prev_WS'})
-            df_curr = df_curr.merge(ws_prev, on='Keyword_Join', how='left')
-            
-            def calc_change_ws(row):
+            def calc_change(row):
                 curr = row['Rank']
-                prev = row['Rank_Prev_WS']
+                prev = row['Rank_Prev']
                 if pd.isna(curr) or pd.isna(prev):
                     return 0
                 return int(prev) - int(curr)
             
-            df_curr['Change_WS'] = df_curr.apply(calc_change_ws, axis=1)
+            df_curr['Change'] = df_curr.apply(calc_change, axis=1)
             
-            df_curr['Trend_Info_WS'] = df_curr.apply(
-                lambda row: classify_trend_extended(row['Rank'], row['Rank_Prev_WS']), axis=1
+            df_curr['Trend_Info'] = df_curr.apply(
+                lambda row: classify_trend_extended(row['Rank'], row['Rank_Prev']), axis=1
             )
-            df_curr['Trend_Label_WS'] = df_curr['Trend_Info_WS'].apply(lambda x: x['label'])
-            df_curr['Trend_Type_WS'] = df_curr['Trend_Info_WS'].apply(lambda x: x['type'])
-            df_curr['Trend_Severity_WS'] = df_curr['Trend_Info_WS'].apply(lambda x: x['severity'])
+            df_curr['Trend_Label'] = df_curr['Trend_Info'].apply(lambda x: x['label'])
+            df_curr['Trend_Type'] = df_curr['Trend_Info'].apply(lambda x: x['type'])
+            df_curr['Trend_Severity'] = df_curr['Trend_Info'].apply(lambda x: x['severity'])
+
+            # === HEADER ===
+            total_kw = len(df_curr)
+            top10_count = len(df_curr[df_curr['Rank'].notna() & (df_curr['Rank'] <= 10)])
             
-            curr_date_str = pd.to_datetime(curr_date).strftime('%d/%m/%Y')
-            with ws_col2:
+            st.markdown(f"""
+            <div class="dashboard-header">
+                <h1>📊 Dashboard: {selected_project}</h1>
+                <div class="subtitle">
+                    <span class="stat-badge">📅 {pd.to_datetime(curr_date).strftime('%d/%m/%Y')}</span>
+                    <span class="stat-badge"># {total_kw} keywords</span>
+                    <span class="stat-badge">📈 {len(all_dates)} ngày dữ liệu</span>
+                    <span class="stat-badge">🎯 {top10_count} trong Top 10</span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # === ALERTS ===
+            dropped_kw = df_curr[df_curr['Trend_Type'] == 'dropped']
+            new_kw = df_curr[df_curr['Trend_Type'] == 'new']
+            
+            if len(dropped_kw) > 0 or len(new_kw) > 0:
+                col_a1, col_a2 = st.columns(2)
+                
+                with col_a1:
+                    if len(dropped_kw) > 0:
+                        dropped_list = ', '.join(dropped_kw['Keyword'].head(3).tolist())
+                        more = f" và {len(dropped_kw) - 3} keywords khác" if len(dropped_kw) > 3 else ""
+                        st.markdown(f"""
+                        <div class="alert-box danger">
+                            <div class="icon-wrapper">⚠</div>
+                            <div class="content">
+                                <div class="title">{len(dropped_kw)} từ khóa rớt khỏi Top 100</div>
+                                <div class="description">{dropped_list}{more}</div>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                
+                with col_a2:
+                    if len(new_kw) > 0:
+                        new_list = ', '.join(new_kw['Keyword'].head(3).tolist())
+                        more = f" và {len(new_kw) - 3} keywords khác" if len(new_kw) > 3 else ""
+                        st.markdown(f"""
+                        <div class="alert-box success">
+                            <div class="icon-wrapper">✦</div>
+                            <div class="content">
+                                <div class="title">{len(new_kw)} từ khóa mới vào Top 100</div>
+                                <div class="description">{new_list}{more}</div>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+            
+            # === KPI SECTION ===
+            st.markdown("""
+            <div class="section-header">
+                <div class="icon">📊</div>
+                <h2>Phân bổ & KPI</h2>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            compare_options = get_available_compare_dates(all_dates, curr_date)
+            
+            col_cmp, col_hist = st.columns([2, 1])
+            with col_cmp:
+                if compare_options:
+                    selected_compare_label = st.selectbox(
+                        "📅 So sánh với:",
+                        options=list(compare_options.keys()),
+                        index=0
+                    )
+                    compare_date = compare_options[selected_compare_label]
+                    compare_date_str = pd.to_datetime(compare_date).strftime('%d/%m/%Y')
+                else:
+                    selected_compare_label = None
+                    compare_date = None
+                    compare_date_str = None
+                    st.info("Chỉ có 1 ngày dữ liệu")
+                    
+            with col_hist:
+                show_history = st.checkbox("📈 Hiển thị lịch sử", value=False)
+            
+            comparison = calculate_comparison(df_history, curr_date, compare_date) if compare_date else {}
+            
+            # KPI Cards
+            limits = [3, 5, 10, 15, 30, 50, 100]
+            cols = st.columns(4)
+            
+            for i, lim in enumerate(limits[:4]):
+                with cols[i]:
+                    cnt = len(df_curr[df_curr['Rank'].notna() & (df_curr['Rank'] <= lim)])
+                    pct = (cnt / total_kw) * 100 if total_kw > 0 else 0
+                    
+                    comp_data = comparison.get(f'top{lim}', {})
+                    comp_count = comp_data.get('compare', cnt)
+                    delta = comp_data.get('delta', 0)
+                    delta_pct = comp_data.get('delta_pct', 0)
+                    
+                    # FIX #1: Logic đúng - delta dương = tăng, delta âm = giảm
+                    if delta > 0:
+                        trend_html = f'<div class="trend up">↑ +{delta}</div>'
+                        trend_class = "success"
+                    elif delta < 0:
+                        trend_html = f'<div class="trend down">↓ {delta}</div>'
+                        trend_class = "danger"
+                    else:
+                        trend_html = f'<div class="trend stable">— 0</div>'
+                        trend_class = "info"
+                    
+                    compare_text = f"vs {compare_date_str}: {delta:+d} ({delta_pct:+.1f}%)" if compare_date_str else ""
+                    
+                    # FIX #2: Hiển thị số KW cần thêm
+                    target_html = ""
+                    if lim in kpi:
+                        target_kw = int(total_kw * kpi[lim] / 100)  # Số KW cần đạt
+                        gap_kw = cnt - target_kw  # Số KW chênh lệch
+                        gap_pct = pct - kpi[lim]
+                        
+                        if gap_pct >= 0:
+                            target_html = f'<div class="target-status met">✓ Đạt +{gap_pct:.1f}% (+{gap_kw} KW)</div>'
+                        else:
+                            target_html = f'<div class="target-status miss">✗ Thiếu {abs(gap_pct):.1f}% ({gap_kw} KW)</div>'
+                    
+                    st.markdown(f"""
+                    <div class="kpi-card {trend_class}">
+                        <div class="label">Top {lim}</div>
+                        <div class="value">{cnt}</div>
+                        <div class="percentage">{pct:.1f}%</div>
+                        {trend_html}
+                        <div class="compare">{compare_text}</div>
+                        {target_html}
+                    </div>
+                    """, unsafe_allow_html=True)
+            
+            # Second row
+            cols2 = st.columns(4)
+            
+            for i, lim in enumerate(limits[4:7]):
+                with cols2[i]:
+                    cnt = len(df_curr[df_curr['Rank'].notna() & (df_curr['Rank'] <= lim)])
+                    pct = (cnt / total_kw) * 100 if total_kw > 0 else 0
+                    
+                    comp_data = comparison.get(f'top{lim}', {})
+                    delta = comp_data.get('delta', 0)
+                    
+                    if delta > 0:
+                        trend_html = f'<div class="trend up">↑ +{delta}</div>'
+                        trend_class = "success"
+                    elif delta < 0:
+                        trend_html = f'<div class="trend down">↓ {delta}</div>'
+                        trend_class = "danger"
+                    else:
+                        trend_html = f'<div class="trend stable">— 0</div>'
+                        trend_class = "info"
+                    
+                    # FIX #2: Hiển thị số KW cần thêm
+                    target_html = ""
+                    if lim in kpi:
+                        target_kw = int(total_kw * kpi[lim] / 100)
+                        gap_kw = cnt - target_kw
+                        gap_pct = pct - kpi[lim]
+                        
+                        if gap_pct >= 0:
+                            target_html = f'<div class="target-status met">✓ Đạt +{gap_pct:.1f}% (+{gap_kw} KW)</div>'
+                        else:
+                            target_html = f'<div class="target-status miss">✗ Thiếu {abs(gap_pct):.1f}% ({gap_kw} KW)</div>'
+                    
+                    st.markdown(f"""
+                    <div class="kpi-card {trend_class}">
+                        <div class="label">Top {lim}</div>
+                        <div class="value">{cnt}</div>
+                        <div class="percentage">{pct:.1f}%</div>
+                        {trend_html}
+                        {target_html}
+                    </div>
+                    """, unsafe_allow_html=True)
+            
+            # OUT > 100 Card
+            with cols2[3]:
+                cnt_out = len(df_curr[df_curr['Rank'].isna()])
+                pct_out = (cnt_out / total_kw * 100) if total_kw > 0 else 0
+                net = len(new_kw) - len(dropped_kw)
+                
+                net_color = "var(--success)" if net >= 0 else "var(--danger)"
+                net_symbol = "+" if net >= 0 else ""
+                
                 st.markdown(f"""
-                <div class="workstation-compare-badge" style="margin-top: 28px;">
-                    📊 Đang xem: <strong>{curr_date_str}</strong> so với <strong>{ws_compare_date_str}</strong>
+                <div class="kpi-card danger">
+                    <div class="label">Out of Top 100</div>
+                    <div class="value">{cnt_out}</div>
+                    <div class="percentage">{pct_out:.1f}%</div>
+                    <div style="margin-top: 12px; font-size: 13px; color: var(--gray-500);">
+                        <span style="color: var(--danger);">↓ Rớt: {len(dropped_kw)}</span> &nbsp;|&nbsp; 
+                        <span style="color: var(--success);">↑ Mới: {len(new_kw)}</span>
+                    </div>
+                    <div style="margin-top: 8px; font-weight: 600; font-size: 15px; color: {net_color};">
+                        Net: {net_symbol}{net}
+                    </div>
                 </div>
                 """, unsafe_allow_html=True)
-        else:
-            # Nếu chỉ có 1 ngày, dùng data mặc định
-            df_curr['Change_WS'] = df_curr['Change']
-            df_curr['Trend_Label_WS'] = df_curr['Trend_Label']
-            df_curr['Trend_Type_WS'] = df_curr['Trend_Type']
-            df_curr['Trend_Severity_WS'] = df_curr['Trend_Severity']
-            st.info("Chỉ có 1 ngày dữ liệu")
-        
-        def analyze_issue(row):
-            t = clean_url_for_compare(row['Target URL'])
-            c = clean_url_for_compare(row['Actual_URL']) if pd.notna(row.get('Actual_URL')) else ""
-            if t and c and (t not in c):
-                return "Cannibal"
-            if not t:
-                return "Missing Target"
-            return "OK"
+            
+            # History Table
+            if show_history:
+                st.markdown("""
+                <div class="section-header" style="margin-top: 24px;">
+                    <div class="icon">📈</div>
+                    <h2>Lịch sử xếp hạng</h2>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                display_history = df_history.copy()
+                display_history['Date'] = pd.to_datetime(display_history['Date']).dt.strftime('%d/%m/%Y')
+                
+                display_cols = ['Date', 'Total_KW']
+                for top_n in [3, 5, 10, 30, 100]:
+                    display_cols.append(f'Top{top_n}_count')
+                display_cols.append('Out100_count')
+                
+                rename_map = {'Total_KW': 'Tổng KW', 'Out100_count': 'Out>100'}
+                for top_n in [3, 5, 10, 30, 100]:
+                    rename_map[f'Top{top_n}_count'] = f'Top {top_n}'
+                
+                st.dataframe(
+                    display_history[display_cols].rename(columns=rename_map),
+                    use_container_width=True,
+                    hide_index=True
+                )
 
-        df_curr['Issue'] = df_curr.apply(analyze_issue, axis=1)
-        
-        col_f1, col_f2, col_f3, col_f4, col_f5 = st.columns([2, 1, 1.5, 1.5, 2])
-        
-        with col_f1:
-            sel_top = st.multiselect("Topic", sorted(df_curr['Topic'].unique()))
-        with col_f2:
-            sel_rnk = st.selectbox("Rank", ["All", "Top 3", "Top 5", "Top 10", "Top 30", "Top 100", "Out > 100"])
-        with col_f3:
-            trend_options = ["All", "Tăng mạnh", "Tăng", "Đi ngang", "Giảm", "Giảm mạnh", "Rớt Top 100", "Mới vào Top 100"]
-            sel_trend = st.selectbox("Xu hướng", trend_options)
-        with col_f4:
-            sel_issue = st.selectbox("Vấn đề", ["All", "Cannibal", "Missing Target", "OK"])
-        with col_f5:
-            search_txt = st.text_input("Tìm kiếm", placeholder="Keyword hoặc URL...")
+            # === TOPIC HEALTH ===
+            st.markdown("""
+            <div class="section-header">
+                <div class="icon">🎯</div>
+                <h2>Sức khỏe Topic</h2>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            col_th1, col_th2 = st.columns([3, 1])
+            with col_th1:
+                top_threshold = st.radio(
+                    "Phân tích theo ngưỡng:",
+                    options=[3, 5, 10, 30, 100],
+                    format_func=lambda x: f"Top {x}",
+                    horizontal=True,
+                    index=2
+                )
+            
+            df_topic_health = calculate_topic_health(df_curr, top_threshold)
+            
+            st.dataframe(
+                df_topic_health[['Topic', 'Total_KW', 'In_Top', 'In_Top_Pct', 'Up', 'Down', 'Net_Flow']].rename(columns={
+                    'Topic': 'Chủ đề',
+                    'Total_KW': 'Tổng KW',
+                    'In_Top': f'Trong Top {top_threshold}',
+                    'In_Top_Pct': f'% Top {top_threshold}',
+                    'Up': '↑ Tăng',
+                    'Down': '↓ Giảm',
+                    'Net_Flow': 'Net Flow'
+                }),
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    'Net Flow': st.column_config.ProgressColumn(
+                        'Net Flow',
+                        min_value=-10,
+                        max_value=10,
+                        format='%d'
+                    )
+                }
+            )
+            
+            total_in_top = df_topic_health['In_Top'].sum()
+            total_kw_topic = df_topic_health['Total_KW'].sum()
+            st.markdown(f"""
+            <div class="stats-bar">
+                <div class="stat-item">
+                    🎯
+                    <span>Tổng quan: <span class="value">{int(total_in_top)}/{int(total_kw_topic)}</span> keywords trong Top {top_threshold}</span>
+                </div>
+                <div class="stat-item">
+                    📊
+                    <span>Tỷ lệ: <span class="value">{total_in_top/total_kw_topic*100:.1f}%</span></span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
 
-        v = df_curr.copy()
-        
-        if sel_top: 
-            v = v[v['Topic'].isin(sel_top)]
-        
-        if sel_rnk != "All":
-            if sel_rnk == "Out > 100": 
-                v = v[v['Rank'].isna()]
-            else: 
-                top_val = int(sel_rnk.replace("Top ", ""))
-                v = v[v['Rank'].notna() & (v['Rank'] <= top_val)]
-        
-        if sel_trend != "All":
-            v = v[v['Trend_Label_WS'] == sel_trend]
-        
-        if sel_issue != "All": 
-            v = v[v['Issue'] == sel_issue]
-        
-        if search_txt:
-            s = search_txt.lower()
-            v = v[
-                v['Keyword'].str.lower().str.contains(s, na=False) | 
-                v['Actual_URL'].astype(str).str.lower().str.contains(s, na=False)
-            ]
+            # === WORKSTATION ===
+            st.markdown("""
+            <div class="section-header">
+                <div class="icon">⚡</div>
+                <h2>Workstation</h2>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # FIX #4: Dropdown chọn ngày so sánh cho Workstation
+            ws_compare_options = get_available_compare_dates(all_dates, curr_date)
+            
+            if ws_compare_options:
+                ws_col1, ws_col2 = st.columns([1, 3])
+                with ws_col1:
+                    ws_selected_compare = st.selectbox(
+                        "📅 So sánh với:",
+                        options=list(ws_compare_options.keys()),
+                        index=0,
+                        key="workstation_compare"
+                    )
+                    ws_compare_date = ws_compare_options[ws_selected_compare]
+                    ws_compare_date_str = pd.to_datetime(ws_compare_date).strftime('%d/%m/%Y')
+                
+                # Tính lại Change và Trend theo ngày đã chọn
+                ws_prev = df[df['Date'] == ws_compare_date][['Keyword_Join', 'Rank']].copy()
+                ws_prev = ws_prev.rename(columns={'Rank': 'Rank_Prev_WS'})
+                df_curr = df_curr.merge(ws_prev, on='Keyword_Join', how='left')
+                
+                def calc_change_ws(row):
+                    curr = row['Rank']
+                    prev = row['Rank_Prev_WS']
+                    if pd.isna(curr) or pd.isna(prev):
+                        return 0
+                    return int(prev) - int(curr)
+                
+                df_curr['Change_WS'] = df_curr.apply(calc_change_ws, axis=1)
+                
+                df_curr['Trend_Info_WS'] = df_curr.apply(
+                    lambda row: classify_trend_extended(row['Rank'], row['Rank_Prev_WS']), axis=1
+                )
+                df_curr['Trend_Label_WS'] = df_curr['Trend_Info_WS'].apply(lambda x: x['label'])
+                df_curr['Trend_Type_WS'] = df_curr['Trend_Info_WS'].apply(lambda x: x['type'])
+                df_curr['Trend_Severity_WS'] = df_curr['Trend_Info_WS'].apply(lambda x: x['severity'])
+                
+                curr_date_str = pd.to_datetime(curr_date).strftime('%d/%m/%Y')
+                with ws_col2:
+                    st.markdown(f"""
+                    <div class="workstation-compare-badge" style="margin-top: 28px;">
+                        📊 Đang xem: <strong>{curr_date_str}</strong> so với <strong>{ws_compare_date_str}</strong>
+                    </div>
+                    """, unsafe_allow_html=True)
+            else:
+                # Nếu chỉ có 1 ngày, dùng data mặc định
+                df_curr['Change_WS'] = df_curr['Change']
+                df_curr['Trend_Label_WS'] = df_curr['Trend_Label']
+                df_curr['Trend_Type_WS'] = df_curr['Trend_Type']
+                df_curr['Trend_Severity_WS'] = df_curr['Trend_Severity']
+                st.info("Chỉ có 1 ngày dữ liệu")
+            
+            def analyze_issue(row):
+                t = clean_url_for_compare(row['Target URL'])
+                c = clean_url_for_compare(row['Actual_URL']) if pd.notna(row.get('Actual_URL')) else ""
+                if t and c and (t not in c):
+                    return "Cannibal"
+                if not t:
+                    return "Missing Target"
+                return "OK"
 
-        v = v.sort_values(by=['Trend_Severity_WS', 'Rank'], ascending=[False, True])
-        
-        v['Rank_Display'] = v['Rank'].apply(lambda x: int(x) if pd.notna(x) else ">100")
-        v['Change_Display'] = v['Change_WS'].apply(lambda x: f"{int(x):+d}" if x != 0 else "-")
+            df_curr['Issue'] = df_curr.apply(analyze_issue, axis=1)
+            
+            col_f1, col_f2, col_f3, col_f4, col_f5 = st.columns([2, 1, 1.5, 1.5, 2])
+            
+            with col_f1:
+                sel_top = st.multiselect("Topic", sorted(df_curr['Topic'].unique()))
+            with col_f2:
+                sel_rnk = st.selectbox("Rank", ["All", "Top 3", "Top 5", "Top 10", "Top 30", "Top 100", "Out > 100"])
+            with col_f3:
+                trend_options = ["All", "Tăng mạnh", "Tăng", "Đi ngang", "Giảm", "Giảm mạnh", "Rớt Top 100", "Mới vào Top 100"]
+                sel_trend = st.selectbox("Xu hướng", trend_options)
+            with col_f4:
+                sel_issue = st.selectbox("Vấn đề", ["All", "Cannibal", "Missing Target", "OK"])
+            with col_f5:
+                search_txt = st.text_input("Tìm kiếm", placeholder="Keyword hoặc URL...")
 
-        st.markdown(f"""
-        <div class="data-table-header">
-            <div class="title">🔍 Kết quả lọc <span class="count">{len(v)}</span></div>
-        </div>
-        """, unsafe_allow_html=True)
+            v = df_curr.copy()
+            
+            if sel_top: 
+                v = v[v['Topic'].isin(sel_top)]
+            
+            if sel_rnk != "All":
+                if sel_rnk == "Out > 100": 
+                    v = v[v['Rank'].isna()]
+                else: 
+                    top_val = int(sel_rnk.replace("Top ", ""))
+                    v = v[v['Rank'].notna() & (v['Rank'] <= top_val)]
+            
+            if sel_trend != "All":
+                v = v[v['Trend_Label_WS'] == sel_trend]
+            
+            if sel_issue != "All": 
+                v = v[v['Issue'] == sel_issue]
+            
+            if search_txt:
+                s = search_txt.lower()
+                v = v[
+                    v['Keyword'].str.lower().str.contains(s, na=False) | 
+                    v['Actual_URL'].astype(str).str.lower().str.contains(s, na=False)
+                ]
 
-        st.dataframe(
-            v[['Keyword', 'Topic', 'Rank_Display', 'Change_Display', 'Trend_Label_WS', 'Issue', 'Actual_URL', 'Target URL']].rename(columns={
-                'Rank_Display': 'Rank',
-                'Change_Display': 'Δ',
-                'Trend_Label_WS': 'Xu hướng'
-            }), 
-            use_container_width=True, 
-            height=500,
-            column_config={
-                "Actual_URL": st.column_config.LinkColumn("Actual URL"), 
-                "Target URL": st.column_config.LinkColumn("Target URL"),
-            }
-        )
-        
-        st.markdown(f"""
-        <div class="stats-bar">
-            <div class="stat-item">🚀 Tăng mạnh: <span class="value">{len(v[v['Trend_Type_WS']=='surge'])}</span></div>
-            <div class="stat-item">↑ Tăng: <span class="value">{len(v[v['Trend_Type_WS']=='up'])}</span></div>
-            <div class="stat-item">↓ Giảm: <span class="value">{len(v[v['Trend_Type_WS']=='down'])}</span></div>
-            <div class="stat-item">🔥 Giảm mạnh: <span class="value">{len(v[v['Trend_Type_WS']=='crash'])}</span></div>
-            <div class="stat-item">⚠ Rớt: <span class="value">{len(v[v['Trend_Type_WS']=='dropped'])}</span></div>
-            <div class="stat-item">✦ Mới: <span class="value">{len(v[v['Trend_Type_WS']=='new'])}</span></div>
-        </div>
-        """, unsafe_allow_html=True)
+            v = v.sort_values(by=['Trend_Severity_WS', 'Rank'], ascending=[False, True])
+            
+            v['Rank_Display'] = v['Rank'].apply(lambda x: int(x) if pd.notna(x) else ">100")
+            v['Change_Display'] = v['Change_WS'].apply(lambda x: f"{int(x):+d}" if x != 0 else "-")
+
+            st.markdown(f"""
+            <div class="data-table-header">
+                <div class="title">🔍 Kết quả lọc <span class="count">{len(v)}</span></div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            st.dataframe(
+                v[['Keyword', 'Topic', 'Rank_Display', 'Change_Display', 'Trend_Label_WS', 'Issue', 'Actual_URL', 'Target URL']].rename(columns={
+                    'Rank_Display': 'Rank',
+                    'Change_Display': 'Δ',
+                    'Trend_Label_WS': 'Xu hướng'
+                }), 
+                use_container_width=True, 
+                height=500,
+                column_config={
+                    "Actual_URL": st.column_config.LinkColumn("Actual URL"), 
+                    "Target URL": st.column_config.LinkColumn("Target URL"),
+                }
+            )
+            
+            st.markdown(f"""
+            <div class="stats-bar">
+                <div class="stat-item">🚀 Tăng mạnh: <span class="value">{len(v[v['Trend_Type_WS']=='surge'])}</span></div>
+                <div class="stat-item">↑ Tăng: <span class="value">{len(v[v['Trend_Type_WS']=='up'])}</span></div>
+                <div class="stat-item">↓ Giảm: <span class="value">{len(v[v['Trend_Type_WS']=='down'])}</span></div>
+                <div class="stat-item">🔥 Giảm mạnh: <span class="value">{len(v[v['Trend_Type_WS']=='crash'])}</span></div>
+                <div class="stat-item">⚠ Rớt: <span class="value">{len(v[v['Trend_Type_WS']=='dropped'])}</span></div>
+                <div class="stat-item">✦ Mới: <span class="value">{len(v[v['Trend_Type_WS']=='new'])}</span></div>
+            </div>
+            """, unsafe_allow_html=True)
     else:
         st.markdown("""
         <div style="text-align: center; padding: 60px 20px; background: white; border-radius: 16px; margin-top: 20px; border-top: 4px solid #2563eb;">
             <div style="font-size: 48px; margin-bottom: 16px;">📤</div>
             <h3 style="color: #1e40af; margin-bottom: 8px;">Chưa có dữ liệu ranking</h3>
-            <p style="color: #6b7280;">Vui lòng upload file hoặc paste data ranking ở sidebar để bắt đầu phân tích</p>
+            <p style="color: #6b7280;">Vui lòng upload file ranking ở sidebar để bắt đầu phân tích</p>
         </div>
         """, unsafe_allow_html=True)
 else:
@@ -1423,3 +1029,5 @@ else:
             </ol>
         </div>
         """, unsafe_allow_html=True)
+
+
