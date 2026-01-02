@@ -347,37 +347,64 @@ def classify_trend_extended(current_rank, previous_rank, threshold=100):
     else:
         return {'label': 'Giảm mạnh', 'type': 'crash', 'severity': 4}
 
-# --- DATA PROCESSING ---
+# --- DATA PROCESSING (FIXED) ---
 
 def process_ranking_data_from_df(df, master_df):
-    """Process ranking data từ DataFrame (chung cho cả upload và paste)"""
+    """Process ranking data từ DataFrame (Xử lý định dạng ngày VN chính xác)"""
     try:
-        rank_cols_lower = [str(c).lower().strip() for c in df.columns]
+        # 1. Chuẩn hóa tên cột
+        df.columns = [str(c).strip() for c in df.columns]
+        rank_cols_lower = [c.lower() for c in df.columns]
+        
         key_col, url_col = None, None
         
+        # 2. Tìm cột Keyword và URL
         for idx, c in enumerate(rank_cols_lower):
             if 'keyword' in c: key_col = df.columns[idx]
             if 'url' in c and 'target' not in c: url_col = df.columns[idx]
             
         if not key_col:
-            st.error("File Tracking thiếu cột Keyword!")
+            st.error("❌ Lỗi: File Tracking thiếu cột Keyword!")
             return pd.DataFrame(), [], []
 
         rename_dict = {key_col: "Keyword"}
         if url_col: rename_dict[url_col] = "Actual_URL"
         df.rename(columns=rename_dict, inplace=True)
         
+        # 3. Xác định các cột không phải là ngày (Keyword, URL)
         id_vars = ['Keyword']
         if "Actual_URL" in df.columns: id_vars.append("Actual_URL")
         
+        # Các cột còn lại chính là cột Ngày
         date_cols = [c for c in df.columns if c not in id_vars]
+        
+        # 4. Melt dữ liệu (Chuyển cột ngang thành dọc)
         df_long = pd.melt(df, id_vars=id_vars, value_vars=date_cols, var_name='Date_Raw', value_name='Rank')
         
-        df_long['Date'] = pd.to_datetime(df_long['Date_Raw'], errors='coerce')
+        # === FIX STARTS HERE ===
+        # Bước 4.1: Ép kiểu string cho cột ngày
+        df_long['Date_Raw'] = df_long['Date_Raw'].astype(str).str.strip()
+        
+        # Bước 4.2: Thay thế dấu chấm "." thành "/" để hỗ trợ format DD.MM.YYYY tốt hơn
+        df_long['Date_Clean'] = df_long['Date_Raw'].str.replace('.', '/', regex=False)
+        
+        # Bước 4.3: Parse date với dayfirst=True (Ưu tiên đọc Ngày trước Tháng)
+        df_long['Date'] = pd.to_datetime(df_long['Date_Clean'], dayfirst=True, errors='coerce')
+        # === FIX ENDS HERE ===
+
+        # 5. Kiểm tra dữ liệu bị drop (Debug log)
+        dropped_rows = df_long[df_long['Date'].isna()]
+        if len(dropped_rows) > 0:
+            example_bad_date = dropped_rows['Date_Raw'].iloc[0]
+            if len(dropped_rows) > len(df) * 0.5:
+                st.warning(f"⚠ Cảnh báo: Có {len(dropped_rows)} dòng không nhận diện được ngày. Mẫu: '{example_bad_date}'")
+
+        # 6. Lọc bỏ dòng lỗi & Clean Rank
         df_long = df_long.dropna(subset=['Date']) 
         df_long['Rank'] = df_long['Rank'].apply(clean_rank)
         df_long['Keyword_Join'] = df_long['Keyword'].apply(clean_text_strict)
         
+        # 7. Merge với Master Data (Topic, Target URL)
         full_df = df_long.copy()
         missing_keys = []
         all_dates = sorted(df_long['Date'].unique(), reverse=True)
